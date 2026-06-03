@@ -1,0 +1,18 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: smartbite
+  profiles:
+    active: local
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_null
+
+gemini:
+    name: gemini
+    enabled: true
+    api-key: ${GEMINI_API_KEY}
+    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    model: gemini-2.5-flash

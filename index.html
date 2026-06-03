@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartBite — Meal Suggestions</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 40px 16px;
+    }
+
+    .container { max-width: 680px; margin: 0 auto; }
+
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 32px; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+
+    label { font-size: 0.85rem; font-weight: 500; color: #444; }
+
+    input, select {
+      padding: 10px 12px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: #1a1a1a;
+      background: #fafafa;
+      transition: border-color .15s;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus { border-color: #4f46e5; background: #fff; }
+
+    .hint { font-size: 0.75rem; color: #aaa; }
+
+    /* Eating history */
+    .history-add-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 12px;
+    }
+
+    .add-btn {
+      padding: 10px 16px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .add-btn:hover { background: #4338ca; }
+
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8f7ff;
+      border: 1px solid #e0deff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+    }
+
+    .history-item-left { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .history-item-name { font-weight: 600; }
+
+    .history-pill {
+      background: #ede9fe;
+      color: #4f46e5;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+    }
+
+    .history-calories {
+      background: #fef9c3;
+      color: #92400e;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 0 4px;
+    }
+
+    .remove-btn:hover { color: #ef4444; }
+
+    .empty-history {
+      text-align: center;
+      color: #bbb;
+      font-size: 0.85rem;
+      padding: 14px 0;
+    }
+
+    /* Submit */
+    button[type="submit"] {
+      width: 100%;
+      padding: 13px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button[type="submit"]:hover { background: #4338ca; }
+    button[type="submit"]:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Calorie summary */
+    .calorie-summary {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .cal-box {
+      background: #f8f7ff;
+      border: 1.5px solid #e0deff;
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .cal-box.highlight {
+      background: #ede9fe;
+      border-color: #c4b5fd;
+    }
+
+    .cal-label { font-size: 0.7rem; color: #888; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .cal-value { font-size: 1.1rem; font-weight: 700; color: #4f46e5; }
+    .cal-unit  { font-size: 0.65rem; color: #aaa; }
+
+    /* Results */
+    #result { display: none; }
+
+    .result-header {
+      font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: #888; margin-bottom: 12px;
+    }
+
+    .meal-type {
+      display: inline-block;
+      background: #ede9fe; color: #4f46e5;
+      border-radius: 20px; padding: 4px 14px;
+      font-size: 0.85rem; font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .suggestions-grid { display: flex; flex-direction: column; gap: 14px; }
+
+    .suggestion-card {
+      border: 1.5px solid #e8e8e8;
+      border-radius: 10px; padding: 18px;
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+
+    .suggestion-num {
+      background: #4f46e5; color: #fff;
+      border-radius: 50%; width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+    }
+
+    .suggestion-body { flex: 1; }
+    .suggestion-name { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+    .suggestion-desc { font-size: 0.875rem; color: #444; line-height: 1.5; margin-bottom: 12px; }
+
+    .suggestion-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+
+    .calories-badge {
+      background: #fef9c3; color: #92400e;
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 0.78rem; font-weight: 600;
+    }
+
+    .ingredient-tag {
+      background: #f0fdf4; color: #166534;
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 0.78rem; font-weight: 500;
+    }
+
+    .suggestion-why {
+      font-size: 0.8rem; color: #888; line-height: 1.5;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 10px; margin-top: 2px;
+    }
+
+    .suggestion-why span { font-weight: 600; color: #666; }
+
+    /* Error */
+    .error-box {
+      background: #fef2f2; border: 1.5px solid #fca5a5;
+      border-radius: 8px; padding: 14px 16px;
+      color: #b91c1c; font-size: 0.875rem; display: none;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 560px) {
+      .history-add-row { grid-template-columns: 1fr 1fr; }
+      .history-add-row .add-btn { grid-column: 1 / -1; }
+      .calorie-summary { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <h1>SmartBite</h1>
+    <p class="subtitle">Fill in your details and get 3 personalised meal suggestions based on your calorie targets.</p>
+
+    <form id="mealForm">
+
+      <!-- Location -->
+      <div class="card">
+        <p class="section-title">Location</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="country">Country</label>
+            <input id="country" type="text" value="Pakistan" required />
+          </div>
+          <div class="field">
+            <label for="city">City</label>
+            <input id="city" type="text" value="Lahore" required />
+          </div>
+          <div class="field full">
+            <label for="cuisine">Preferred Cuisine</label>
+            <input id="cuisine" type="text" value="Pakistani" required />
+          </div>
+        </div>
+      </div>
+
+      <!-- About You -->
+      <div class="card">
+        <p class="section-title">About You</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="gender">Gender</label>
+            <select id="gender" required>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="age">Age</label>
+            <input id="age" type="number" min="1" max="120" value="30" required />
+          </div>
+          <div class="field">
+            <label for="weightKg">Weight (kg)</label>
+            <input id="weightKg" type="number" min="1" step="0.1" value="70" required />
+          </div>
+          <div class="field">
+            <label for="heightCm">Height (cm)</label>
+            <input id="heightCm" type="number" min="1" step="0.1" value="165" required />
+          </div>
+          <div class="field full">
+            <label for="activityLevel">Activity Level <span style="color:#aaa;font-weight:400">(optional)</span></label>
+            <select id="activityLevel">
+              <option value="">— Use moderate (default) —</option>
+              <option value="sedentary">Sedentary (little or no exercise)</option>
+              <option value="light">Light (1–3 days/week)</option>
+              <option value="moderate">Moderate (3–5 days/week)</option>
+              <option value="active">Active (6–7 days/week)</option>
+              <option value="very_active">Very Active (hard exercise, physical job)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time -->
+      <div class="card">
+        <p class="section-title">Time &amp; Context</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="currentTime">Current Time</label>
+            <input id="currentTime" type="time" required />
+          </div>
+          <div class="field">
+            <label for="timezone">Timezone</label>
+            <input id="timezone" type="text" value="Asia/Karachi" required />
+            <span class="hint">IANA format, e.g. Asia/Karachi</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eating History -->
+      <div class="card">
+        <p class="section-title">Eating History <span style="color:#bbb;font-weight:400;text-transform:none">(optional)</span></p>
+
+        <div class="history-add-row">
+          <div class="field">
+            <label>Food Name</label>
+            <input id="hName" type="text" placeholder="e.g. Chicken Biryani" />
+          </div>
+          <div class="field">
+            <label>Calories</label>
+            <input id="hCalories" type="number" min="1" placeholder="e.g. 450" />
+          </div>
+          <div class="field">
+            <label>Meal Type</label>
+            <select id="hMealType">
+              <option value="">— optional —</option>
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snack">Snack</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Date</label>
+            <input id="hDate" type="date" />
+          </div>
+          <button type="button" class="add-btn" onclick="addHistoryItem()">+ Add</button>
+        </div>
+
+        <div class="history-list" id="historyList">
+          <div class="empty-history" id="emptyHistory">No meals added yet</div>
+        </div>
+      </div>
+
+      <div class="error-box" id="errorBox"></div>
+
+      <button type="submit" id="submitBtn">
+        <span class="spinner" id="spinner"></span>
+        <span id="btnText">Get Meal Suggestions</span>
+      </button>
+    </form>
+
+    <!-- Results -->
+    <div id="result" class="card" style="margin-top:24px">
+      <p class="result-header">Your Calorie Targets</p>
+      <div class="calorie-summary" id="calorieSummary"></div>
+      <p class="result-header">Suggestions for you</p>
+      <div class="meal-type" id="mealType"></div>
+      <div class="suggestions-grid" id="suggestionsList"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8080/api/v1/meal-suggestions';
+
+    // Auto-fill current time and today's date
+    const now = new Date();
+    document.getElementById('currentTime').value =
+      String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('hDate').value = now.toISOString().split('T')[0];
+
+    // Eating history state
+    const historyItems = [];
+
+    function addHistoryItem() {
+      const name     = document.getElementById('hName').value.trim();
+      const calories = parseInt(document.getElementById('hCalories').value);
+      const mealType = document.getElementById('hMealType').value;
+      const date     = document.getElementById('hDate').value;
+
+      if (!name || !calories || calories < 1) {
+        alert('Please enter at least a food name and calories.');
+        return;
+      }
+
+      historyItems.push({ name, calories, mealType: mealType || null, date: date || null });
+
+      // Clear inputs
+      document.getElementById('hName').value     = '';
+      document.getElementById('hCalories').value = '';
+      document.getElementById('hMealType').value = '';
+
+      renderHistory();
+    }
+
+    function removeHistoryItem(index) {
+      historyItems.splice(index, 1);
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const list  = document.getElementById('historyList');
+      const empty = document.getElementById('emptyHistory');
+
+      if (historyItems.length === 0) {
+        list.innerHTML = '<div class="empty-history" id="emptyHistory">No meals added yet</div>';
+        return;
+      }
+
+      list.innerHTML = historyItems.map((item, i) => `
+        <div class="history-item">
+          <div class="history-item-left">
+            <span class="history-item-name">${item.name}</span>
+            <span class="history-calories">${item.calories} kcal</span>
+            ${item.mealType ? `<span class="history-pill">${item.mealType}</span>` : ''}
+            ${item.date     ? `<span class="history-pill">${item.date}</span>` : ''}
+          </div>
+          <button class="remove-btn" type="button" onclick="removeHistoryItem(${i})" title="Remove">×</button>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('mealForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const btn      = document.getElementById('submitBtn');
+      const spinner  = document.getElementById('spinner');
+      const btnText  = document.getElementById('btnText');
+      const errorBox = document.getElementById('errorBox');
+      const result   = document.getElementById('result');
+
+      errorBox.style.display = 'none';
+      result.style.display   = 'none';
+      btn.disabled           = true;
+      spinner.style.display  = 'block';
+      btnText.textContent    = 'Thinking…';
+
+      const payload = {
+        country:        document.getElementById('country').value.trim(),
+        city:           document.getElementById('city').value.trim(),
+        cuisine:        document.getElementById('cuisine').value.trim(),
+        gender:         document.getElementById('gender').value,
+        age:            parseInt(document.getElementById('age').value),
+        weight_kg:      parseFloat(document.getElementById('weightKg').value),
+        height_cm:      parseFloat(document.getElementById('heightCm').value),
+        activity_level: document.getElementById('activityLevel').value || null,
+        current_time:   document.getElementById('currentTime').value,
+        timezone:       document.getElementById('timezone').value.trim(),
+        eating_history: historyItems.length > 0 ? historyItems : null,
+      };
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`Server returned ${res.status}: ${err}`);
+        }
+
+        const data = await res.json();
+
+        // Calorie summary
+        const cs = data.calorie_summary ?? {};
+        document.getElementById('calorieSummary').innerHTML = `
+          <div class="cal-box">
+            <div class="cal-label">Daily</div>
+            <div class="cal-value">${cs.daily_target ?? '—'}</div>
+            <div class="cal-unit">kcal / day</div>
+          </div>
+          <div class="cal-box">
+            <div class="cal-label">Weekly</div>
+            <div class="cal-value">${cs.weekly_target ?? '—'}</div>
+            <div class="cal-unit">kcal / week</div>
+          </div>
+          <div class="cal-box">
+            <div class="cal-label">Monthly</div>
+            <div class="cal-value">${cs.monthly_target ?? '—'}</div>
+            <div class="cal-unit">kcal / month</div>
+          </div>
+          <div class="cal-box">
+            <div class="cal-label">Consumed</div>
+            <div class="cal-value">${cs.consumed_today ?? 0}</div>
+            <div class="cal-unit">kcal today</div>
+          </div>
+          <div class="cal-box highlight">
+            <div class="cal-label">Remaining</div>
+            <div class="cal-value">${cs.remaining_today ?? '—'}</div>
+            <div class="cal-unit">kcal left</div>
+          </div>
+        `;
+
+        // Meal type
+        document.getElementById('mealType').textContent = data.meal_type ?? 'Meal';
+
+        // Suggestions
+        const list = document.getElementById('suggestionsList');
+        list.innerHTML = '';
+        (data.suggestions ?? []).forEach((s, i) => {
+          const ingredients = (s.key_ingredients ?? [])
+            .map(ing => `<span class="ingredient-tag">${ing}</span>`).join('');
+          list.innerHTML += `
+            <div class="suggestion-card">
+              <div class="suggestion-num">${i + 1}</div>
+              <div class="suggestion-body">
+                <div class="suggestion-name">${s.name ?? ''}</div>
+                <div class="suggestion-desc">${s.short_description ?? ''}</div>
+                <div class="suggestion-meta">
+                  <span class="calories-badge">~${s.estimated_calories ?? '?'} kcal</span>
+                  ${ingredients}
+                </div>
+                <div class="suggestion-why"><span>Why this?</span> ${s.why_recommended ?? ''}</div>
+              </div>
+            </div>`;
+        });
+
+        result.style.display = 'block';
+        result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      } catch (err) {
+        errorBox.textContent   = err.message;
+        errorBox.style.display = 'block';
+      } finally {
+        btn.disabled          = false;
+        spinner.style.display = 'none';
+        btnText.textContent   = 'Get Meal Suggestions';
+      }
+    });
+  </script>
+</body>
+</html>
