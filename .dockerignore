@@ -1,0 +1,12 @@
+target/
+build/
+.git/
+.idea/
+.vscode/
+*.log
+*.md
+.env
+application-local.yml
+.gitignore
+HELP.md
+mvnw.cmd
