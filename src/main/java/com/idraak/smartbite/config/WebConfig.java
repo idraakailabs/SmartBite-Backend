@@ -11,16 +11,30 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     @Value("${gemini.api-key}")
-    private String apiKey;
+    private String geminiApiKey;
 
     @Value("${gemini.base-url}")
-    private String baseUrl;
+    private String geminiBaseUrl;
+
+    @Value("${groq.api-key:}")
+    private String groqApiKey;
+
+    @Value("${groq.base-url}")
+    private String groqBaseUrl;
 
     @Bean
     public RestClient geminiRestClient() {
         return RestClient.builder()
-                .baseUrl(baseUrl)
-                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .baseUrl(geminiBaseUrl)
+                .defaultHeader("Authorization", "Bearer " + geminiApiKey)
+                .build();
+    }
+
+    @Bean
+    public RestClient groqRestClient() {
+        return RestClient.builder()
+                .baseUrl(groqBaseUrl)
+                .defaultHeader("Authorization", "Bearer " + groqApiKey)
                 .build();
     }
 

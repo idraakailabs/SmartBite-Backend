@@ -11,8 +11,9 @@ spring:
     default-property-inclusion: non_null
 
 gemini:
-    name: gemini
-    enabled: true
     api-key: ${GEMINI_API_KEY}
     base-url: https://generativelanguage.googleapis.com/v1beta/openai
-    model: gemini-2.5-flash
+
+groq:
+    api-key: ${GROQ_API_KEY:}
+    base-url: https://api.groq.com/openai/v1

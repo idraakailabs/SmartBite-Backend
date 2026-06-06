@@ -7,16 +7,23 @@ import com.idraak.smartbite.dto.EatingHistoryItem;
 import com.idraak.smartbite.dto.MealRequest;
 import com.idraak.smartbite.dto.MealResponse;
 import com.idraak.smartbite.exception.AiServiceException;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class AIModelService {
+
+    private static final Logger log = LoggerFactory.getLogger(AIModelService.class);
+
+    private record Provider(String name, String model, RestClient client) {}
+
 
     private static final String PROMPT_TEMPLATE = """
             You are a personalized nutrition and meal recommendation assistant. Your job is to suggest meals tailored to a user's profile, calorie targets, and eating history.
@@ -90,28 +97,49 @@ public class AIModelService {
             </output_format>
             """;
 
-    private final RestClient restClient;
-    private final String model;
+    private final List<Provider> providers;
     private final ObjectMapper objectMapper;
 
     public AIModelService(
             RestClient geminiRestClient,
-            @Value("${gemini.model}") String model,
+            RestClient groqRestClient,
             ObjectMapper objectMapper) {
-        this.restClient = geminiRestClient;
-        this.model = model;
+        this.providers = List.of(
+            new Provider("groq-llama-8b",     "llama-3.1-8b-instant",    groqRestClient),
+            new Provider("groq-llama-70b",    "llama-3.3-70b-versatile", groqRestClient),
+            new Provider("gemini-flash-lite", "gemini-2.5-flash-lite",   geminiRestClient),
+            new Provider("groq-gemma",        "gemma2-9b-it",            groqRestClient)
+        );
         this.objectMapper = objectMapper;
     }
 
     public MealResponse getSuggestions(MealRequest request) {
         String prompt = buildPrompt(request);
+        Exception lastException = null;
 
+        for (Provider provider : providers) {
+            try {
+                return callProvider(provider, prompt);
+            } catch (RestClientResponseException e) {
+                if (e.getStatusCode().value() == 429) {
+                    log.warn("Rate limited on {}. Trying next provider.", provider.name());
+                    lastException = e;
+                } else {
+                    throw new AiServiceException("AI service error from " + provider.name() + ": " + e.getMessage(), e);
+                }
+            }
+        }
+
+        throw new AiServiceException("All AI providers are rate limited", lastException);
+    }
+
+    private MealResponse callProvider(Provider provider, String prompt) {
         Map<String, Object> body = Map.of(
-                "model", model,
+                "model", provider.model(),
                 "messages", List.of(Map.of("role", "user", "content", prompt))
         );
 
-        JsonNode response = restClient.post()
+        JsonNode response = provider.client().post()
                 .uri("/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
