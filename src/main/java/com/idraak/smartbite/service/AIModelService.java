@@ -105,10 +105,9 @@ public class AIModelService {
             RestClient groqRestClient,
             ObjectMapper objectMapper) {
         this.providers = List.of(
-            new Provider("groq-llama-8b",     "llama-3.1-8b-instant",    groqRestClient),
-            new Provider("groq-llama-70b",    "llama-3.3-70b-versatile", groqRestClient),
-            new Provider("gemini-flash-lite", "gemini-2.5-flash-lite",   geminiRestClient),
-            new Provider("groq-gemma",        "gemma2-9b-it",            groqRestClient)
+            new Provider("groq-gpt-oss-120b", "openai/gpt-oss-120b",   groqRestClient),
+            new Provider("gemini-flash-lite", "gemini-2.5-flash-lite", geminiRestClient),
+            new Provider("groq-gpt-oss-20b",  "openai/gpt-oss-20b",    groqRestClient)
         );
         this.objectMapper = objectMapper;
     }
