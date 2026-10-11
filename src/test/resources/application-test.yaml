@@ -1,0 +1,5 @@
+# Test profile: dummy values only, so the build and tests need no real secrets.
+gemini:
+  api-key: test-gemini-key
+groq:
+  api-key: test-groq-key

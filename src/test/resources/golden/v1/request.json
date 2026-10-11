@@ -1,0 +1,15 @@
+{
+  "country": "Pakistan",
+  "city": "Lahore",
+  "cuisine": "Pakistani",
+  "gender": "male",
+  "age": 30,
+  "weight_kg": 72.5,
+  "height_cm": 175.0,
+  "activity_level": "moderate",
+  "current_time": "19:30",
+  "timezone": "Asia/Karachi",
+  "eating_history": [
+    { "name": "Chicken Karahi", "calories": 650, "meal_type": "Dinner", "date": "2026-10-10" }
+  ]
+}
