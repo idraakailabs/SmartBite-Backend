@@ -1,0 +1,1950 @@
+openapi: 3.1.0
+info:
+  title: SmartBite API v2
+  version: 2.0.0-draft.1
+  summary: Authenticated meal suggestions, recipes, reports and account data deletion for the SmartBite Android app.
+  description: |
+    **Status: DRAFT for owner review (2026-10-11). Nothing in this file is implemented yet.**
+
+    Contract rules (see `docs/api/README.md` for the full semantics):
+
+    - **Versioning.** `/api/v2` is a new major version. Within v2 only additive changes are allowed (new
+      optional request fields, new response fields, new enum values). Clients must ignore unknown response
+      fields and must map unknown enum values to a safe default (for `category`, use `other`; for reason codes,
+      hide the reason). Breaking changes need `/api/v3`.
+    - **`/api/v1` is untouched** by this contract. `POST /api/v1/meal-suggestions` keeps its request, response,
+      behaviour and lack of auth for app versions that still use it.
+    - **JSON naming is snake_case**, the same as v1 (the service's global Jackson setting).
+    - **Timestamps** are ISO-8601 in UTC (`2026-10-11T19:00:00Z`). Local calendar dates are `YYYY-MM-DD`.
+    - **Auth.** Every v2 endpoint requires `Authorization: Bearer <Firebase ID token>`. Missing, malformed,
+      expired or foreign-project tokens get `401 UNAUTHENTICATED`.
+    - **Errors** use one body for every failure: RFC 9457 Problem Details (`application/problem+json`) plus a
+      stable machine `code`. Clients branch on `code`, never on `title` or `detail`.
+    - **Request bodies** are limited to 32 KiB. Unknown request fields are ignored.
+    - **Language.** All generated text is English in this version.
+  contact:
+    name: SmartBite backend owner
+servers:
+  - url: https://smartbite-backend-zsyr.onrender.com
+    description: Production (existing Render service; v2 not deployed yet)
+  - url: https://{staging-host}
+    description: Staging (to be created on Render; host name not known yet)
+    variables:
+      staging-host:
+        default: smartbite-backend-staging.onrender.com
+        description: Placeholder until the staging service exists.
+security:
+  - firebaseIdToken: []
+tags:
+  - name: Suggestions
+    description: Taste-first pick sets with server-side quota, diet enforcement and area verification.
+  - name: Recipes
+    description: Authentic regional recipes generated and cached on the backend, gated by entitlement.
+  - name: Reports
+    description: In-app reports of AI suggestions and recipes (Play AI-generated content policy).
+  - name: Account
+    description: Quota read-out and server-side data deletion for the signed-in user.
+  - name: Operations
+    description: Platform health check.
+paths:
+  /api/v2/meal-suggestions:
+    post:
+      tags: [Suggestions]
+      operationId: createMealSuggestions
+      summary: Generate one set of up to 3 taste-first picks
+      description: |
+        Generates a pick set (normally 3 suggestions: a hero and two alternatives) for the caller's taste
+        profile, intent and area.
+
+        - **Diet is a hard constraint.** Suggestions that conflict with `profile.diet` (or a stricter
+          `refine.vegetarian_today`) are removed by a server-side check; the set is regenerated once if needed.
+          If fewer than 3 safe suggestions remain, the response carries 1 or 2 suggestions. If none remain, the
+          request fails with `GENERATION_FAILED` and no quota is used.
+        - **Quota.** Free users: `free_daily_suggestions` successful, non-empty sets per local calendar day in
+          the caller's timezone. Counted atomically, only when this endpoint returns 200 with at least one
+          suggestion. Premium users are not capped (rate limits still apply).
+        - **Retries.** Send an `Idempotency-Key` (one UUID per user action). A retry with the same key within
+          10 minutes never consumes a second quota unit, and returns the same set while the server still holds
+          it in memory.
+        - **Reasons** are computed by the server from the request data and the dish attributes. A reason is
+          never returned without evidence. There is no budget, goal, nutrition or calorie reason in v2.
+        - **Area verification** (intent `eat_out` with coordinates only) uses Google Places on the backend. A
+          suggestion is `verified` only when matching places were found within the radius; otherwise it is
+          labelled `popular_around` with the reason it was not verified.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+        - $ref: '#/components/parameters/EntitlementRefresh'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MealSuggestionRequest'
+            examples:
+              eatOutNearMe:
+                summary: Eat out near Johar Town, Lahore, with coordinates
+                value:
+                  intent: eat_out
+                  timezone: Asia/Karachi
+                  area:
+                    lat: 31.4697
+                    lng: 74.2728
+                    label: Johar Town, Lahore
+                    radius_km: 3
+                    city: Lahore
+                    country: Pakistan
+                    country_code: PK
+                  profile:
+                    diet: non_vegetarian
+                    spice_tolerance: spicy
+                    top_cuisines: [Pakistani, Arabic]
+                    favorite_proteins: [Chicken, Mutton]
+                    disliked_foods: [Bitter gourd]
+                    liked_dishes: [Chicken Karahi, Seekh Kebab, Chicken Biryani]
+                    budget_tier: moderate
+                    cooking_time: up_to_60
+                    cooking_skill: intermediate
+                    household_size: 2
+                  recent_suggestions: [Chicken Tikka, Daal Chawal, Aloo Paratha]
+                  history:
+                    - dish: Chicken Karahi
+                      date: '2026-10-09'
+                      meal_slot: dinner
+                      entry_type: ate_out
+                      reaction: loved
+                    - dish: Daal Chawal
+                      date: '2026-10-10'
+                      meal_slot: lunch
+                      entry_type: cooked
+                      reaction: okay
+              cookAtHomeRefined:
+                summary: Cook at home, quicker and for 4 people, city-only area
+                value:
+                  intent: cook
+                  timezone: Asia/Karachi
+                  area:
+                    city: Karachi
+                    country: Pakistan
+                    country_code: PK
+                  profile:
+                    diet: vegetarian
+                    spice_tolerance: medium
+                    top_cuisines: [Pakistani, Indian]
+                    cooking_time: up_to_30
+                    cooking_skill: beginner
+                    household_size: 4
+                  refine:
+                    quicker: true
+                    servings: 4
+      responses:
+        '200':
+          description: A pick set. The quota object reflects the state after this set was counted.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealSuggestionResponse'
+              examples:
+                eatOutVerifiedHero:
+                  $ref: '#/components/examples/EatOutResponse'
+        '400':
+          $ref: '#/components/responses/MalformedRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountRequired'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/DailyLimitOrRateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/GenerationFailed'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /api/v2/recipes:
+    post:
+      tags: [Recipes]
+      operationId: createRecipe
+      summary: Get an authentic regional recipe for a dish (entitlement-aware)
+      description: |
+        Returns a recipe for `dish` in the tradition named by `origin`, scaled to `servings`.
+
+        - **Gate.** When the server setting `recipe_steps_premium` is `true` (default) and the caller is not
+          Premium, the response contains the full ingredient list and only the first
+          `recipe_free_preview_steps` steps (default 2), with `locked: true`. Tips and the variant's steps are
+          also withheld. The dish name and ingredients are never withheld. A locked recipe is a normal `200`, not
+          an error.
+        - **Cache.** Recipes are cached by normalised dish + origin + servings + diet + variant location + prompt
+          version for 30 days. The gate is applied after the cache, so a free and a Premium user share the same
+          cached recipe.
+        - **Diet.** If `diet` is given, the recipe must comply. A dish that cannot comply (for example "Chicken
+          Karahi" with `diet: vegan`) gets `422 DISH_CONFLICTS_WITH_DIET`.
+        - Recipes do not consume the daily suggestion quota. They are rate limited per user.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+        - $ref: '#/components/parameters/EntitlementRefresh'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeRequest'
+            examples:
+              karahi:
+                value:
+                  dish: Chicken Karahi
+                  origin:
+                    cuisine: Pakistani
+                    region: Lahori
+                  servings: 4
+                  diet: non_vegetarian
+                  variant_location: Lahore, Pakistan
+      responses:
+        '200':
+          description: The recipe, full or locked preview.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipeResponse'
+              examples:
+                lockedPreview:
+                  $ref: '#/components/examples/LockedRecipeResponse'
+        '400':
+          $ref: '#/components/responses/MalformedRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountRequired'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationOrDietConflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/GenerationFailed'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /api/v2/reports:
+    post:
+      tags: [Reports]
+      operationId: createReport
+      summary: Report a suggestion or recipe
+      description: |
+        Stores a report in Firestore through the Admin SDK. **Only these fields are stored:** uid (from the
+        token), suggestion name, reason, server timestamp and app version. Nothing else from the request or the
+        connection (no IP address, no free text, no location) is stored.
+
+        Idempotent with `Idempotency-Key`: repeating the same key returns the original report id with `200`
+        instead of creating a duplicate.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+            examples:
+              dietViolation:
+                value:
+                  suggestion_name: Chicken Karahi
+                  reason: violates_my_diet
+                  app_version: 2.1.0
+      responses:
+        '201':
+          description: Report stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+              examples:
+                created:
+                  value:
+                    report_id: rpt_01JA8Q6Z3V7XKQ2M4N5P6R7S8T
+                    created_at: '2026-10-11T14:05:12Z'
+        '200':
+          description: Same `Idempotency-Key` as an earlier report; the original report is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '400':
+          $ref: '#/components/responses/MalformedRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountRequired'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /api/v2/me/quota:
+    get:
+      tags: [Account]
+      operationId: getMyQuota
+      summary: Read today's suggestion allowance without consuming it
+      description: |
+        Lets the app show "2 of 3 left today" or skip the paywall check before a request. Read-only: never
+        changes the counter or the pinned timezone.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+        - $ref: '#/components/parameters/EntitlementRefresh'
+        - name: timezone
+          in: query
+          required: true
+          description: IANA timezone of the device, e.g. `Asia/Karachi`.
+          schema:
+            $ref: '#/components/schemas/Timezone'
+      responses:
+        '200':
+          description: Current allowance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaResponse'
+              examples:
+                free:
+                  value:
+                    quota:
+                      is_premium: false
+                      unlimited: false
+                      limit: 3
+                      used: 1
+                      remaining: 2
+                      day: '2026-10-11'
+                      timezone: Asia/Karachi
+                      reset_at: '2026-10-11T19:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountRequired'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/me:
+    delete:
+      tags: [Account]
+      operationId: deleteMyServerData
+      summary: Delete the caller's server-side data and RevenueCat customer (account deletion)
+      description: |
+        Called by the app during account deletion, **after** Google re-authentication and **before** it deletes
+        the Firebase Auth user (the ID token must still verify). This endpoint:
+
+        1. Requires a recently issued token: `auth_time` no older than 5 minutes, and the token is checked
+           for revocation. Otherwise `401 REAUTHENTICATION_REQUIRED`.
+        2. Records a deletion request (uid and timestamps only) so a failed step is retried by the server.
+        3. Deletes the RevenueCat customer (REST API v2; RevenueCat processes it asynchronously). This does
+           **not** cancel a Google Play subscription; the app must warn the user first (TECH-012).
+        4. Deletes the quota counter document and evicts in-memory caches for the uid.
+        5. Removes the uid from the caller's stored reports (the report rows are kept without the uid).
+        6. Deletes the deletion-request record once every step has succeeded.
+
+        It does **not** delete the Firebase Auth user or the client-owned `users/{uid}` document; the app keeps
+        doing that, as it does today. Idempotent: calling it again after success returns `200` with
+        `already_deleted` / `not_found` outcomes.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+      responses:
+        '200':
+          description: Every step completed, or was already complete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletionResponse'
+              examples:
+                done:
+                  value:
+                    status: completed
+                    steps:
+                      revenuecat_customer: deletion_queued
+                      quota_counter: deleted
+                      reports: anonymized
+                    reports_anonymized: 2
+        '202':
+          description: |
+            Server data was deleted but RevenueCat could not be reached. The deletion request is recorded and
+            the server retries it. The app may continue deleting the account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletionResponse'
+              examples:
+                pending:
+                  value:
+                    status: pending_retry
+                    steps:
+                      revenuecat_customer: retry_scheduled
+                      quota_counter: deleted
+                      reports: anonymized
+                    reports_anonymized: 0
+        '401':
+          $ref: '#/components/responses/UnauthenticatedOrReauth'
+        '403':
+          $ref: '#/components/responses/AccountRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /actuator/health:
+    get:
+      tags: [Operations]
+      operationId: health
+      summary: Health for the platform's health check (no auth, no details)
+      security: []
+      responses:
+        '200':
+          description: Up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [UP]
+        '503':
+          description: Down or out of service.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [DOWN, OUT_OF_SERVICE]
+
+components:
+  securitySchemes:
+    firebaseIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        A Firebase Authentication ID token for the SmartBite Firebase project, obtained on the device with
+        `FirebaseUser.getIdToken(false)`. Verified on every request with the Firebase Admin SDK (signature,
+        issuer, audience = project id, expiry). Anonymous sign-in tokens are rejected with
+        `403 ACCOUNT_REQUIRED`. On `401`, refresh the token once with `getIdToken(true)` and retry.
+
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Optional client correlation id (UUID). Echoed back; generated by the server when absent.
+      schema:
+        type: string
+        format: uuid
+    AppVersion:
+      name: X-App-Version
+      in: header
+      required: false
+      description: App `versionName` (e.g. `2.1.0` or `2.1.0-debug`). Logged for compatibility analysis.
+      schema:
+        $ref: '#/components/schemas/AppVersion'
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: One UUID per user action. Reuse it only when retrying the same action.
+      schema:
+        type: string
+        format: uuid
+    EntitlementRefresh:
+      name: X-Entitlement-Refresh
+      in: header
+      required: false
+      description: |
+        Send `true` right after a purchase or restore so the server re-reads the RevenueCat entitlement instead
+        of using its cache. Limited to one refresh per uid every 30 seconds; extra refreshes use the cache.
+      schema:
+        type: boolean
+
+  headers:
+    XRequestId:
+      description: Correlation id for support and logs.
+      schema:
+        type: string
+    RetryAfter:
+      description: Seconds until the request may be retried.
+      schema:
+        type: integer
+        minimum: 1
+
+  responses:
+    MalformedRequest:
+      description: The body is not valid JSON or has wrong types.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            malformed:
+              value:
+                type: urn:smartbite:problem:malformed-request
+                title: Malformed request
+                status: 400
+                code: MALFORMED_REQUEST
+                detail: The request body could not be read.
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+    Unauthenticated:
+      description: Missing, malformed, expired or foreign-project ID token.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: Bearer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unauthenticated:
+              value:
+                type: urn:smartbite:problem:unauthenticated
+                title: Sign-in required
+                status: 401
+                code: UNAUTHENTICATED
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+    UnauthenticatedOrReauth:
+      description: Invalid token (`UNAUTHENTICATED`), or the token is older than 5 minutes / revoked (`REAUTHENTICATION_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            reauth:
+              value:
+                type: urn:smartbite:problem:reauthentication-required
+                title: Please sign in again
+                status: 401
+                code: REAUTHENTICATION_REQUIRED
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+    AccountRequired:
+      description: The token is valid but belongs to an anonymous account.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            anonymous:
+              value:
+                type: urn:smartbite:problem:account-required
+                title: A signed-in account is required
+                status: 403
+                code: ACCOUNT_REQUIRED
+    PayloadTooLarge:
+      description: Body larger than 32 KiB.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationFailed:
+      description: The body parsed but a field broke a rule.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validation:
+              value:
+                type: urn:smartbite:problem:validation-failed
+                title: Validation failed
+                status: 422
+                code: VALIDATION_FAILED
+                detail: One or more fields are invalid.
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+                errors:
+                  - field: area.radius_km
+                    code: out_of_range
+                    message: must be between 0.5 and 10
+                  - field: timezone
+                    code: invalid_timezone
+                    message: is not a known IANA timezone
+    ValidationOrDietConflict:
+      description: '`VALIDATION_FAILED`, or `DISH_CONFLICTS_WITH_DIET` when the dish cannot be made for the given diet.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            dietConflict:
+              value:
+                type: urn:smartbite:problem:dish-conflicts-with-diet
+                title: This dish does not fit the selected diet
+                status: 422
+                code: DISH_CONFLICTS_WITH_DIET
+    RateLimited:
+      description: Too many requests for this user (or the IP, before auth).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            rateLimited:
+              value:
+                type: urn:smartbite:problem:rate-limited
+                title: Too many requests
+                status: 429
+                code: RATE_LIMITED
+                retry_after_seconds: 42
+    DailyLimitOrRateLimited:
+      description: |
+        `DAILY_LIMIT_REACHED` (free allowance used; includes `limit`, `used` and `reset_at`), or `RATE_LIMITED`.
+        Both carry `Retry-After`. For `DAILY_LIMIT_REACHED` it is the number of seconds until `reset_at`.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            dailyLimit:
+              value:
+                type: urn:smartbite:problem:daily-limit-reached
+                title: Today's free picks are used up
+                status: 429
+                code: DAILY_LIMIT_REACHED
+                limit: 3
+                used: 3
+                reset_at: '2026-10-11T19:00:00Z'
+                retry_after_seconds: 17940
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+            rateLimited:
+              value:
+                type: urn:smartbite:problem:rate-limited
+                title: Too many requests
+                status: 429
+                code: RATE_LIMITED
+                retry_after_seconds: 30
+    GenerationFailed:
+      description: |
+        The AI providers answered, but no output passed parsing, schema and diet checks after every fallback.
+        No quota was used. Safe to retry with a new `Idempotency-Key`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            generationFailed:
+              value:
+                type: urn:smartbite:problem:generation-failed
+                title: We couldn't put together safe picks
+                status: 502
+                code: GENERATION_FAILED
+    ProviderUnavailable:
+      description: |
+        Every AI provider failed (429, 5xx, timeout or connection error), or a dependency the endpoint cannot
+        work without (Firestore) is unavailable. No quota was used.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            providerUnavailable:
+              value:
+                type: urn:smartbite:problem:provider-unavailable
+                title: Our food brain is busy
+                status: 503
+                code: PROVIDER_UNAVAILABLE
+                retry_after_seconds: 20
+    InternalError:
+      description: Unexpected error. The body never contains exception messages or stack traces.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internal:
+              value:
+                type: urn:smartbite:problem:internal-error
+                title: Something went wrong
+                status: 500
+                code: INTERNAL_ERROR
+                request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+
+  schemas:
+    # ---------- shared primitives ----------
+    SafeText:
+      description: Trimmed text without control characters or the characters < > { } [ ].
+      type: string
+      pattern: '^[^\u0000-\u001F\u007F<>{}\[\]]*$'
+    DishName:
+      allOf:
+        - $ref: '#/components/schemas/SafeText'
+      minLength: 1
+      maxLength: 80
+    Timezone:
+      description: IANA timezone id; validated with `java.time.ZoneId`. Fixed offsets such as `+05:00` are rejected.
+      type: string
+      minLength: 3
+      maxLength: 64
+      pattern: '^[A-Za-z]+(?:[/_+-][A-Za-z0-9_+-]+)*$'
+      examples: [Asia/Karachi]
+    AppVersion:
+      type: string
+      maxLength: 32
+      pattern: '^[0-9]+\.[0-9]+\.[0-9]+([-+][A-Za-z0-9.]+)*$'
+      examples: ['2.1.0', '2.1.0-debug']
+    LocalDate:
+      type: string
+      format: date
+    Instant:
+      type: string
+      format: date-time
+
+    # ---------- enums ----------
+    Intent:
+      type: string
+      enum: [eat_out, cook, anywhere]
+      description: |
+        `eat_out` = dishes to find at nearby restaurants (area grounding applies when coordinates are sent).
+        `cook` = dishes to cook at home for the household. `anywhere` = global dishes, no area grounding.
+    Diet:
+      type: string
+      enum: [non_vegetarian, vegetarian, vegan]
+      description: |
+        Hard constraint. `vegetarian` = no meat, poultry, fish, seafood, gelatine **and no eggs** (South Asian
+        convention; see README "Diet rules"). `vegan` = additionally no dairy, honey or other animal products.
+    SpiceLevel:
+      type: string
+      enum: [mild, medium, spicy, extra_spicy]
+    CookingSkill:
+      type: string
+      enum: [beginner, intermediate, advanced]
+    CookingTime:
+      type: string
+      enum: [up_to_30, up_to_60, up_to_90, over_90]
+      description: Maps the app's stored values "15–30 min", "30–60 min", "60–90 min", "90+ min".
+    BudgetTier:
+      type: string
+      enum: [budget, moderate, upscale, premium]
+      description: |
+        Relative tier, currency-free. Maps the app's four stored ranges in order (lowest = `budget`). Used only
+        to steer the prompt; v2 never claims a dish "fits your budget" because it has no price data.
+    Difficulty:
+      type: string
+      enum: [easy, medium, hard]
+    Category:
+      type: string
+      description: |
+        Dish category for the image library and fallback tiles (D-018). Closed set on the server; clients must
+        treat unknown future values as `other`.
+      enum:
+        - biryani_rice
+        - curry_karahi
+        - grill_kebab
+        - bread_paratha
+        - daal_lentils
+        - soup
+        - salad_bowl
+        - noodles_pasta
+        - pizza
+        - sandwich_burger
+        - street_food
+        - breakfast_eggs
+        - dessert
+        - drink
+        - other
+    EntryType:
+      type: string
+      enum: [cooked, ate_out, suggested]
+      description: History entry type (D-010 renames "ordered" to "ate out").
+    Reaction:
+      type: string
+      enum: [loved, okay, not_for_me]
+    MealSlot:
+      type: string
+      enum: [breakfast, lunch, dinner, late_night]
+      description: |
+        Derived by the server from its own clock in the request's timezone: 06:00–11:59 breakfast,
+        12:00–17:59 lunch, 18:00–23:59 dinner, 00:00–05:59 late_night. History entries may also use `snack`
+        (see HistoryMealSlot).
+    HistoryMealSlot:
+      type: string
+      enum: [breakfast, lunch, dinner, snack, late_night]
+    ReasonCode:
+      type: string
+      description: |
+        Stable codes; the app should render its own localised copy per code and may fall back to `text`.
+        Unknown future codes must be hidden. There are deliberately no budget, goal, nutrition or calorie codes.
+      enum:
+        - DIET_MATCH
+        - SPICE_MATCH
+        - FAVORITE_CUISINE
+        - FAVORITE_PROTEIN
+        - LIKED_IN_TASTE_TEST
+        - SIMILAR_TO_LOVED
+        - LOVED_BEFORE
+        - FITS_COOKING_TIME
+        - FITS_SKILL
+        - REFINE_APPLIED
+        - FRESH_CHOICE
+        - FOUND_NEARBY
+    EvidenceSource:
+      type: string
+      enum: [profile, history, recent_suggestions, refine, places]
+    VerificationStatus:
+      type: string
+      enum: [verified, popular_around, none]
+      description: |
+        `verified` = Google Places returned at least `place_count` matching places within `radius_km` (a lower
+        bound). `popular_around` = not verified; the dish is the model's suggestion for the area and must be
+        labelled "Popular around <area>". `none` = not applicable (intent `cook` or `anywhere`).
+    UnverifiedReason:
+      type: string
+      enum:
+        - no_coordinates
+        - not_checked
+        - no_match_found
+        - user_limit_reached
+        - global_cap_reached
+        - provider_unavailable
+        - places_disabled
+      description: |
+        Why an `eat_out` suggestion is `popular_around`. `not_checked` = verification only runs for the hero
+        by default. `no_match_found` = searched, nothing matched within the radius (absence is not proven).
+    ReportReason:
+      type: string
+      enum: [offensive, violates_my_diet, unsafe_or_wrong, other]
+    MetricUnit:
+      type: string
+      enum: [g, kg, ml, l, piece, pinch, to_taste]
+      description: Units for the metric equivalent of a quantity. `to_taste` has no quantity.
+
+    # ---------- suggestions: request ----------
+    MealSuggestionRequest:
+      type: object
+      required: [intent, timezone, area, profile]
+      properties:
+        intent:
+          $ref: '#/components/schemas/Intent'
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        area:
+          $ref: '#/components/schemas/Area'
+        profile:
+          $ref: '#/components/schemas/TasteProfile'
+        recent_suggestions:
+          description: Dish names shown to the user recently (newest first); the model avoids repeating them.
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/DishName'
+        history:
+          description: The user's recent meal log (newest first, last 30 days). Used for variety and reasons.
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+        session_excluded_dishes:
+          description: Dishes marked "Not for me" or reported in this session; never returned again in this set.
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/DishName'
+        refine:
+          $ref: '#/components/schemas/RefineOptions'
+
+    Area:
+      type: object
+      description: |
+        Either coordinates (`lat`, `lng`, `radius_km`, plus `label`) or a city-only fallback (`city`, and
+        `country` when known). With coordinates and intent `eat_out`, Places verification can run. Without
+        coordinates, `eat_out` suggestions are `popular_around` with `unverified_reason: no_coordinates`.
+        `label` must be the area or place name (from search or reverse geocoding), **never** the user's own
+        saved-place nickname such as "Home"; it is sent to the AI provider. Coordinates are never logged.
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        radius_km:
+          type: number
+          minimum: 0.5
+          maximum: 10
+          description: Required when `lat`/`lng` are present. App presets are 1, 3, 5 and 10.
+        label:
+          allOf:
+            - $ref: '#/components/schemas/SafeText'
+          minLength: 1
+          maxLength: 80
+          examples: [Johar Town, Lahore]
+        city:
+          allOf:
+            - $ref: '#/components/schemas/SafeText'
+          minLength: 1
+          maxLength: 60
+        country:
+          allOf:
+            - $ref: '#/components/schemas/SafeText'
+          minLength: 1
+          maxLength: 60
+        country_code:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2, when known.
+      anyOf:
+        - required: [lat, lng, radius_km, label]
+        - required: [city]
+      dependentRequired:
+        lat: [lng, radius_km]
+        lng: [lat, radius_km]
+
+    TasteProfile:
+      type: object
+      description: |
+        The taste fields from the stored profile (`UserPreferencesDto`). Body metrics (age, gender, weight,
+        height), goal and activity level are **not part of v2** and are ignored if sent (D-005, D-015).
+      required: [diet]
+      properties:
+        diet:
+          $ref: '#/components/schemas/Diet'
+        spice_tolerance:
+          $ref: '#/components/schemas/SpiceLevel'
+        top_cuisines:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items:
+            allOf:
+              - $ref: '#/components/schemas/SafeText'
+            minLength: 1
+            maxLength: 40
+        favorite_proteins:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items:
+            allOf:
+              - $ref: '#/components/schemas/SafeText'
+            minLength: 1
+            maxLength: 40
+        disliked_foods:
+          description: Treated as a strong avoid list (not an allergy guarantee).
+          type: array
+          maxItems: 30
+          items:
+            allOf:
+              - $ref: '#/components/schemas/SafeText'
+            minLength: 1
+            maxLength: 60
+        liked_dishes:
+          description: Dishes picked in the onboarding taste test.
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/DishName'
+        budget_tier:
+          $ref: '#/components/schemas/BudgetTier'
+        cooking_time:
+          $ref: '#/components/schemas/CookingTime'
+        cooking_skill:
+          $ref: '#/components/schemas/CookingSkill'
+        household_size:
+          type: integer
+          minimum: 1
+          maximum: 20
+
+    HistoryEntry:
+      type: object
+      required: [dish, date, entry_type]
+      properties:
+        dish:
+          $ref: '#/components/schemas/DishName'
+        date:
+          $ref: '#/components/schemas/LocalDate'
+        meal_slot:
+          $ref: '#/components/schemas/HistoryMealSlot'
+        entry_type:
+          $ref: '#/components/schemas/EntryType'
+        reaction:
+          oneOf:
+            - $ref: '#/components/schemas/Reaction'
+            - type: 'null'
+
+    RefineOptions:
+      type: object
+      description: |
+        Session-only tweaks from the refine row. They never relax the diet: `vegetarian_today` can only make it
+        stricter. Each refined set is a new set and counts towards the free allowance.
+      properties:
+        quicker:
+          type: boolean
+          description: Prefer dishes with an estimated total time of 30 minutes or less.
+        milder:
+          type: boolean
+          description: One spice level below the profile's tolerance (minimum `mild`).
+        vegetarian_today:
+          type: boolean
+        budget_friendly:
+          type: boolean
+          description: Steers the prompt to everyday dishes. Never produces a budget reason.
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 20
+        cuisine:
+          description: Optional cuisine or country filter ("Anywhere in the world").
+          allOf:
+            - $ref: '#/components/schemas/SafeText'
+          minLength: 1
+          maxLength: 40
+
+    # ---------- suggestions: response ----------
+    MealSuggestionResponse:
+      type: object
+      required: [request_id, generated_at, meal_slot, intent, area_context, suggestions, quota, meta]
+      properties:
+        request_id:
+          type: string
+        generated_at:
+          $ref: '#/components/schemas/Instant'
+        meal_slot:
+          $ref: '#/components/schemas/MealSlot'
+        intent:
+          $ref: '#/components/schemas/Intent'
+        area_context:
+          $ref: '#/components/schemas/AreaContext'
+        suggestions:
+          description: The first item is the hero. Normally 3; 1–2 only when the diet check removed the rest.
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Suggestion'
+        quota:
+          $ref: '#/components/schemas/Quota'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    AreaContext:
+      type: object
+      required: [mode, places_grounding]
+      properties:
+        mode:
+          type: string
+          enum: [coordinates, city, none]
+        label:
+          type: string
+          description: The area label used in copy ("Popular around <label>"); the city when no label was sent.
+        radius_km:
+          type: number
+        places_grounding:
+          type: string
+          enum: [used, skipped, unavailable]
+          description: '`used` = Places data was consulted for this set; `skipped` = not applicable or not requested; `unavailable` = limit, cap or provider failure.'
+
+    Suggestion:
+      type: object
+      required:
+        - id
+        - name
+        - short_description
+        - category
+        - origin
+        - diet
+        - contains_egg
+        - spice_level
+        - key_ingredients
+        - total_time_minutes
+        - difficulty
+        - servings
+        - reasons
+        - verification
+      properties:
+        id:
+          type: string
+          maxLength: 64
+          description: Opaque, unique within the response. Not stored server-side.
+        name:
+          $ref: '#/components/schemas/DishName'
+        short_description:
+          type: string
+          minLength: 1
+          maxLength: 200
+        category:
+          $ref: '#/components/schemas/Category'
+        origin:
+          $ref: '#/components/schemas/Origin'
+        diet:
+          $ref: '#/components/schemas/Diet'
+          description: The diet this dish satisfies as described (always compatible with the request's diet).
+        contains_egg:
+          type: boolean
+        spice_level:
+          $ref: '#/components/schemas/SpiceLevel'
+        primary_protein:
+          type: [string, 'null']
+          maxLength: 40
+          description: Main protein or base, e.g. "Chicken", "Chickpeas". Null when not applicable.
+        key_ingredients:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 40
+        total_time_minutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          description: AI estimate of home cooking time (prep + cook). Shown as an estimate.
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Refine servings, else household size, else 2.
+        reasons:
+          type: array
+          minItems: 0
+          maxItems: 5
+          description: Evidence-backed reasons, strongest first. May be empty; the app shows its minimum state.
+          items:
+            $ref: '#/components/schemas/Reason'
+        verification:
+          $ref: '#/components/schemas/Verification'
+
+    Origin:
+      type: object
+      required: [cuisine, label]
+      properties:
+        cuisine:
+          type: string
+          maxLength: 40
+          examples: [Pakistani]
+        region:
+          type: [string, 'null']
+          maxLength: 40
+          examples: [Lahori]
+        label:
+          type: string
+          maxLength: 90
+          description: Display label, e.g. "Pakistani · Lahori style".
+
+    Reason:
+      type: object
+      required: [code, text, evidence]
+      properties:
+        code:
+          $ref: '#/components/schemas/ReasonCode'
+        text:
+          type: string
+          maxLength: 120
+          description: English fallback copy built by the server from a template, never by the AI.
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Evidence'
+
+    Evidence:
+      type: object
+      required: [source, field]
+      properties:
+        source:
+          $ref: '#/components/schemas/EvidenceSource'
+        field:
+          type: string
+          maxLength: 60
+          description: Request path or Places fact, e.g. `profile.spice_tolerance`, `history[2]`, `places.place_count`.
+        user_value:
+          type: [string, 'null']
+          maxLength: 80
+          description: The value from the request that supports the reason.
+        dish_value:
+          type: [string, 'null']
+          maxLength: 80
+          description: The dish attribute it was compared with.
+
+    Verification:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/VerificationStatus'
+        unverified_reason:
+          oneOf:
+            - $ref: '#/components/schemas/UnverifiedReason'
+            - type: 'null'
+          description: Set only when `status` is `popular_around`.
+        place_count:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 20
+          description: Set only when `verified`. A lower bound (see `place_count_is_lower_bound`).
+        place_count_is_lower_bound:
+          type: boolean
+          description: Always true in v2; the count comes from at most 20 nearby candidates.
+        radius_km:
+          type: [number, 'null']
+        area_label:
+          type: [string, 'null']
+        checked_at:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+        maps:
+          $ref: '#/components/schemas/MapsHandoff'
+        attribution:
+          oneOf:
+            - $ref: '#/components/schemas/Attribution'
+            - type: 'null'
+
+    MapsHandoff:
+      type: [object, 'null']
+      description: |
+        A Google Maps URL (no API key needed) for "Find nearby". Present for `eat_out` suggestions in both
+        `verified` and `popular_around` states; null for `none`.
+      required: [query, url]
+      properties:
+        query:
+          type: string
+          maxLength: 200
+          examples: [Chicken Karahi near Johar Town, Lahore]
+        url:
+          type: string
+          format: uri
+          examples: ['https://www.google.com/maps/search/?api=1&query=Chicken%20Karahi%20near%20Johar%20Town%2C%20Lahore']
+        place_ids:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            maxLength: 300
+          description: Google place ids of verified matches (allowed to be stored indefinitely by the Places policies).
+
+    Attribution:
+      type: object
+      required: [must_display, text]
+      description: The app must show this when it displays Places-derived facts without a Google Map.
+      properties:
+        must_display:
+          type: boolean
+          const: true
+        text:
+          type: string
+          const: Google Maps
+        logo:
+          type: string
+          enum: [google_maps]
+          description: Show the Google Maps logo where space allows; the text is acceptable when space is limited.
+
+    Quota:
+      type: object
+      required: [is_premium, unlimited, timezone, day]
+      properties:
+        is_premium:
+          type: boolean
+        unlimited:
+          type: boolean
+        limit:
+          type: [integer, 'null']
+          minimum: 0
+          description: Null when unlimited.
+        used:
+          type: [integer, 'null']
+          minimum: 0
+        remaining:
+          type: [integer, 'null']
+          minimum: 0
+        day:
+          $ref: '#/components/schemas/LocalDate'
+        timezone:
+          type: string
+          description: The timezone the server counted in (the pinned timezone, which can differ from the request).
+        reset_at:
+          oneOf:
+            - $ref: '#/components/schemas/Instant'
+            - type: 'null'
+          description: Next local midnight in `timezone`, as UTC. Null when unlimited.
+
+    QuotaResponse:
+      type: object
+      required: [quota]
+      properties:
+        quota:
+          $ref: '#/components/schemas/Quota'
+
+    ResponseMeta:
+      type: object
+      required: [prompt_version]
+      properties:
+        prompt_version:
+          type: string
+          examples: [suggest-v2.1]
+        degraded:
+          type: boolean
+          description: True when a fallback AI provider produced the set.
+        idempotent_replay:
+          type: boolean
+          description: True when this body is a replay for a repeated `Idempotency-Key`.
+
+    # ---------- recipes ----------
+    RecipeRequest:
+      type: object
+      required: [dish, origin, servings]
+      properties:
+        dish:
+          $ref: '#/components/schemas/DishName'
+        origin:
+          type: object
+          required: [cuisine]
+          properties:
+            cuisine:
+              allOf:
+                - $ref: '#/components/schemas/SafeText'
+              minLength: 1
+              maxLength: 40
+            region:
+              allOf:
+                - $ref: '#/components/schemas/SafeText'
+              minLength: 1
+              maxLength: 40
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 20
+        diet:
+          $ref: '#/components/schemas/Diet'
+        variant_location:
+          description: When set, the response may include a clearly labelled local variant ("with ingredients easy to find in <location>").
+          allOf:
+            - $ref: '#/components/schemas/SafeText'
+          minLength: 1
+          maxLength: 80
+
+    RecipeResponse:
+      type: object
+      required:
+        - recipe_id
+        - dish
+        - origin
+        - servings
+        - difficulty
+        - times
+        - ingredient_groups
+        - steps
+        - total_steps
+        - locked
+        - tips
+        - safety_note
+        - is_premium
+        - generated_at
+      properties:
+        recipe_id:
+          type: string
+          description: Stable id of the cached recipe (hash of the cache key).
+        dish:
+          type: string
+        origin:
+          $ref: '#/components/schemas/Origin'
+        servings:
+          type: integer
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        times:
+          $ref: '#/components/schemas/RecipeTimes'
+        ingredient_groups:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/IngredientGroup'
+        steps:
+          type: array
+          description: All steps, or only the free preview when `locked` is true.
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/RecipeStep'
+        total_steps:
+          type: integer
+          minimum: 1
+          maximum: 30
+        locked:
+          type: boolean
+        locked_reason:
+          type: [string, 'null']
+          enum: [PREMIUM_REQUIRED, null]
+        tips:
+          type: array
+          description: Empty when locked.
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 240
+        local_variant:
+          oneOf:
+            - $ref: '#/components/schemas/LocalVariant'
+            - type: 'null'
+        safety_note:
+          type: string
+          examples: ["This recipe was written by AI. Check every ingredient for allergens, and cook meat, poultry and eggs until they're cooked through."]
+        is_premium:
+          type: boolean
+        cached:
+          type: boolean
+        generated_at:
+          $ref: '#/components/schemas/Instant'
+
+    RecipeTimes:
+      type: object
+      required: [prep_minutes, cook_minutes, rest_minutes, total_minutes]
+      properties:
+        prep_minutes:
+          type: integer
+          minimum: 0
+        cook_minutes:
+          type: integer
+          minimum: 0
+        rest_minutes:
+          type: integer
+          minimum: 0
+        total_minutes:
+          type: integer
+          minimum: 1
+
+    IngredientGroup:
+      type: object
+      required: [title, items]
+      properties:
+        title:
+          type: string
+          maxLength: 60
+          examples: [For the marinade]
+        items:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/Ingredient'
+
+    Ingredient:
+      type: object
+      required: [item, display_quantity, is_substitution, optional]
+      properties:
+        item:
+          type: string
+          maxLength: 80
+        display_quantity:
+          type: string
+          maxLength: 40
+          description: Primary quantity text, local kitchen measure where natural, e.g. "1 pao", "2 tbsp", "to taste".
+        quantity:
+          type: [number, 'null']
+          minimum: 0
+          description: Numeric quantity for scaling; null for "to taste".
+        unit:
+          type: [string, 'null']
+          maxLength: 20
+          description: Unit of `quantity` (local or kitchen unit, e.g. "pao", "tbsp", "cup", "clove").
+        metric:
+          oneOf:
+            - $ref: '#/components/schemas/MetricQuantity'
+            - type: 'null'
+        notes:
+          type: [string, 'null']
+          maxLength: 80
+        optional:
+          type: boolean
+        is_substitution:
+          type: boolean
+          description: True when this line replaces a traditional ingredient (shown marked as a substitution).
+        substitution_for:
+          type: [string, 'null']
+          maxLength: 80
+        substitutes:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            required: [item]
+            properties:
+              item:
+                type: string
+                maxLength: 80
+              note:
+                type: string
+                maxLength: 80
+
+    MetricQuantity:
+      type: object
+      required: [unit]
+      properties:
+        quantity:
+          type: [number, 'null']
+          minimum: 0
+        unit:
+          $ref: '#/components/schemas/MetricUnit'
+
+    RecipeStep:
+      type: object
+      required: [number, instruction]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        instruction:
+          type: string
+          maxLength: 400
+          description: One instruction, with key quantities repeated inside the text.
+        key_quantities:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+            maxLength: 40
+        prep_minutes:
+          type: [integer, 'null']
+          minimum: 0
+        cook_minutes:
+          type: [integer, 'null']
+          minimum: 0
+        rest_minutes:
+          type: [integer, 'null']
+          minimum: 0
+        timer_seconds:
+          type: [integer, 'null']
+          minimum: 1
+          description: Suggested timer for cook mode.
+
+    LocalVariant:
+      type: object
+      required: [label, ingredient_changes]
+      properties:
+        label:
+          type: string
+          maxLength: 100
+          examples: [Variant · with ingredients easy to find in Lahore]
+        ingredient_changes:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required: [replace, with]
+            properties:
+              replace:
+                type: string
+                maxLength: 80
+              with:
+                type: string
+                maxLength: 80
+              note:
+                type: string
+                maxLength: 120
+        step_changes:
+          type: array
+          description: Empty when the recipe is locked.
+          maxItems: 10
+          items:
+            type: object
+            required: [step_number, instruction]
+            properties:
+              step_number:
+                type: integer
+                minimum: 1
+              instruction:
+                type: string
+                maxLength: 400
+
+    # ---------- reports ----------
+    ReportRequest:
+      type: object
+      required: [suggestion_name, reason, app_version]
+      properties:
+        suggestion_name:
+          $ref: '#/components/schemas/DishName'
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        app_version:
+          $ref: '#/components/schemas/AppVersion'
+    ReportResponse:
+      type: object
+      required: [report_id, created_at]
+      properties:
+        report_id:
+          type: string
+        created_at:
+          $ref: '#/components/schemas/Instant'
+
+    # ---------- account deletion ----------
+    AccountDeletionResponse:
+      type: object
+      required: [status, steps]
+      properties:
+        status:
+          type: string
+          enum: [completed, pending_retry]
+        steps:
+          type: object
+          required: [revenuecat_customer, quota_counter, reports]
+          properties:
+            revenuecat_customer:
+              type: string
+              enum: [deletion_queued, not_found, retry_scheduled]
+            quota_counter:
+              type: string
+              enum: [deleted, not_found]
+            reports:
+              type: string
+              enum: [anonymized, none]
+        reports_anonymized:
+          type: integer
+          minimum: 0
+
+    # ---------- errors ----------
+    ErrorCode:
+      type: string
+      enum:
+        - MALFORMED_REQUEST
+        - UNAUTHENTICATED
+        - REAUTHENTICATION_REQUIRED
+        - ACCOUNT_REQUIRED
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - PAYLOAD_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - VALIDATION_FAILED
+        - DISH_CONFLICTS_WITH_DIET
+        - DAILY_LIMIT_REACHED
+        - RATE_LIMITED
+        - INTERNAL_ERROR
+        - GENERATION_FAILED
+        - PROVIDER_UNAVAILABLE
+      description: |
+        Stable machine codes. New codes may be added; clients treat an unknown code by its HTTP status.
+        `RECIPE_LOCKED` is intentionally not an error: a locked recipe is a `200` with `locked: true`.
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details with SmartBite extensions. Served as `application/problem+json`.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+          examples: ['urn:smartbite:problem:daily-limit-reached']
+        title:
+          type: string
+          description: Short, user-safe summary. Not for branching.
+        status:
+          type: integer
+        detail:
+          type: string
+          description: User-safe explanation. Never contains exception messages, provider responses or personal data.
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        request_id:
+          type: string
+        errors:
+          description: Present for `VALIDATION_FAILED`.
+          type: array
+          items:
+            type: object
+            required: [field, code, message]
+            properties:
+              field:
+                type: string
+                examples: [area.radius_km]
+              code:
+                type: string
+                examples: [out_of_range, required, too_long, invalid_value, invalid_timezone]
+              message:
+                type: string
+        limit:
+          type: integer
+          description: Present for `DAILY_LIMIT_REACHED`.
+        used:
+          type: integer
+          description: Present for `DAILY_LIMIT_REACHED`.
+        reset_at:
+          $ref: '#/components/schemas/Instant'
+          description: Present for `DAILY_LIMIT_REACHED`; next local midnight in the pinned timezone.
+        retry_after_seconds:
+          type: integer
+          description: Same value as the `Retry-After` header, for `RATE_LIMITED`, `DAILY_LIMIT_REACHED` and `PROVIDER_UNAVAILABLE`.
+
+  examples:
+    EatOutResponse:
+      summary: Eat out, hero verified by Places, alternatives not checked
+      value:
+        request_id: 0b7c6f0e-6a1d-4a53-9f2f-1c4b2f3f9a10
+        generated_at: '2026-10-11T14:02:31Z'
+        meal_slot: dinner
+        intent: eat_out
+        area_context:
+          mode: coordinates
+          label: Johar Town, Lahore
+          radius_km: 3
+          places_grounding: used
+        suggestions:
+          - id: sug_1
+            name: Mutton Karahi
+            short_description: Tender mutton cooked fast in a wok-like karahi with tomatoes, green chillies and ginger.
+            category: curry_karahi
+            origin:
+              cuisine: Pakistani
+              region: Peshawari
+              label: Pakistani · Peshawari style
+            diet: non_vegetarian
+            contains_egg: false
+            spice_level: spicy
+            primary_protein: Mutton
+            key_ingredients: [Mutton, Tomatoes, Green chillies, Ginger]
+            total_time_minutes: 75
+            difficulty: medium
+            servings: 2
+            reasons:
+              - code: SIMILAR_TO_LOVED
+                text: Close to Chicken Karahi, which you loved
+                evidence:
+                  - source: history
+                    field: history[0]
+                    user_value: Chicken Karahi (loved)
+                    dish_value: curry_karahi
+              - code: FAVORITE_PROTEIN
+                text: Mutton is one of your favourite proteins
+                evidence:
+                  - source: profile
+                    field: profile.favorite_proteins
+                    user_value: Mutton
+                    dish_value: Mutton
+              - code: FOUND_NEARBY
+                text: Found at 4 places within 3 km
+                evidence:
+                  - source: places
+                    field: places.place_count
+                    user_value: 3 km
+                    dish_value: '4'
+            verification:
+              status: verified
+              unverified_reason: null
+              place_count: 4
+              place_count_is_lower_bound: true
+              radius_km: 3
+              area_label: Johar Town, Lahore
+              checked_at: '2026-10-11T14:02:30Z'
+              maps:
+                query: Mutton Karahi near Johar Town, Lahore
+                url: https://www.google.com/maps/search/?api=1&query=Mutton%20Karahi%20near%20Johar%20Town%2C%20Lahore
+                place_ids: [ChIJexamplePlaceId1, ChIJexamplePlaceId2]
+              attribution:
+                must_display: true
+                text: Google Maps
+                logo: google_maps
+          - id: sug_2
+            name: Chicken Shawarma
+            short_description: Spiced chicken wrapped in pita with garlic sauce and pickles.
+            category: sandwich_burger
+            origin:
+              cuisine: Arabic
+              region: Levantine
+              label: Arabic · Levantine style
+            diet: non_vegetarian
+            contains_egg: false
+            spice_level: medium
+            primary_protein: Chicken
+            key_ingredients: [Chicken, Pita, Garlic sauce, Pickles]
+            total_time_minutes: 40
+            difficulty: easy
+            servings: 2
+            reasons:
+              - code: FAVORITE_CUISINE
+                text: From Arabic cuisine, one of your favourites
+                evidence:
+                  - source: profile
+                    field: profile.top_cuisines
+                    user_value: Arabic
+                    dish_value: Arabic
+            verification:
+              status: popular_around
+              unverified_reason: not_checked
+              place_count: null
+              place_count_is_lower_bound: true
+              radius_km: 3
+              area_label: Johar Town, Lahore
+              checked_at: null
+              maps:
+                query: Chicken Shawarma near Johar Town, Lahore
+                url: https://www.google.com/maps/search/?api=1&query=Chicken%20Shawarma%20near%20Johar%20Town%2C%20Lahore
+                place_ids: []
+              attribution: null
+          - id: sug_3
+            name: Seekh Kebab Platter
+            short_description: Charcoal-grilled minced beef kebabs with naan, onions and mint chutney.
+            category: grill_kebab
+            origin:
+              cuisine: Pakistani
+              region: Lahori
+              label: Pakistani · Lahori style
+            diet: non_vegetarian
+            contains_egg: false
+            spice_level: spicy
+            primary_protein: Beef
+            key_ingredients: [Minced beef, Onion, Naan, Mint chutney]
+            total_time_minutes: 50
+            difficulty: medium
+            servings: 2
+            reasons:
+              - code: LIKED_IN_TASTE_TEST
+                text: You picked Seekh Kebab in your taste test
+                evidence:
+                  - source: profile
+                    field: profile.liked_dishes
+                    user_value: Seekh Kebab
+                    dish_value: Seekh Kebab Platter
+              - code: SPICE_MATCH
+                text: Spicy, the way you like it
+                evidence:
+                  - source: profile
+                    field: profile.spice_tolerance
+                    user_value: spicy
+                    dish_value: spicy
+            verification:
+              status: popular_around
+              unverified_reason: not_checked
+              place_count: null
+              place_count_is_lower_bound: true
+              radius_km: 3
+              area_label: Johar Town, Lahore
+              checked_at: null
+              maps:
+                query: Seekh Kebab Platter near Johar Town, Lahore
+                url: https://www.google.com/maps/search/?api=1&query=Seekh%20Kebab%20Platter%20near%20Johar%20Town%2C%20Lahore
+                place_ids: []
+              attribution: null
+        quota:
+          is_premium: false
+          unlimited: false
+          limit: 3
+          used: 2
+          remaining: 1
+          day: '2026-10-11'
+          timezone: Asia/Karachi
+          reset_at: '2026-10-11T19:00:00Z'
+        meta:
+          prompt_version: suggest-v2.1
+          degraded: false
+          idempotent_replay: false
+
+    LockedRecipeResponse:
+      summary: Free user, recipe_steps_premium = true
+      value:
+        recipe_id: rcp_6f1d0c2a9b
+        dish: Chicken Karahi
+        origin:
+          cuisine: Pakistani
+          region: Lahori
+          label: Pakistani · Lahori style
+        servings: 4
+        difficulty: medium
+        times:
+          prep_minutes: 15
+          cook_minutes: 35
+          rest_minutes: 0
+          total_minutes: 50
+        ingredient_groups:
+          - title: For the karahi
+            items:
+              - item: Chicken, bone-in, curry cut
+                display_quantity: 4 pao
+                quantity: 4
+                unit: pao
+                metric:
+                  quantity: 1000
+                  unit: g
+                optional: false
+                is_substitution: false
+              - item: Tomatoes, chopped
+                display_quantity: 2 pao
+                quantity: 2
+                unit: pao
+                metric:
+                  quantity: 500
+                  unit: g
+                optional: false
+                is_substitution: false
+              - item: Ghee
+                display_quantity: 1/2 cup
+                quantity: 0.5
+                unit: cup
+                metric:
+                  quantity: 120
+                  unit: ml
+                optional: false
+                is_substitution: false
+                substitutes:
+                  - item: Cooking oil
+                    note: Lighter flavour
+              - item: Salt
+                display_quantity: to taste
+                quantity: null
+                unit: null
+                metric:
+                  quantity: null
+                  unit: to_taste
+                optional: false
+                is_substitution: false
+        steps:
+          - number: 1
+            instruction: Heat the 1/2 cup of ghee in a karahi over high heat until it shimmers.
+            key_quantities: [1/2 cup ghee]
+            cook_minutes: 2
+          - number: 2
+            instruction: Add the 1 kg of chicken and fry on high heat, turning, until the pieces are sealed on all sides.
+            key_quantities: [1 kg chicken]
+            cook_minutes: 8
+            timer_seconds: 480
+        total_steps: 8
+        locked: true
+        locked_reason: PREMIUM_REQUIRED
+        tips: []
+        local_variant: null
+        safety_note: This recipe was written by AI. Check every ingredient for allergens, and cook meat, poultry and eggs until they're cooked through.
+        is_premium: false
+        cached: true
+        generated_at: '2026-10-10T09:12:44Z'
