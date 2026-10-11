@@ -9,6 +9,10 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
     default-property-inclusion: non_null
+    deserialization:
+      # Jackson 3 (Spring Boot 4) fails on missing primitives by default. v1 relies on bean validation
+      # reporting them as 400 "Validation failed", so keep the Jackson 2 behaviour.
+      fail-on-null-for-primitives: false
 
 gemini:
     api-key: ${GEMINI_API_KEY}

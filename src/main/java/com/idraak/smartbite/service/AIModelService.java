@@ -1,8 +1,8 @@
 package com.idraak.smartbite.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.idraak.smartbite.dto.EatingHistoryItem;
 import com.idraak.smartbite.dto.MealRequest;
 import com.idraak.smartbite.dto.MealResponse;
@@ -145,12 +145,12 @@ public class AIModelService {
                 .retrieve()
                 .body(JsonNode.class);
 
-        String content = response.path("choices").get(0).path("message").path("content").asText();
+        String content = response.path("choices").get(0).path("message").path("content").asString();
         content = stripMarkdown(content);
 
         try {
             return objectMapper.readValue(content, MealResponse.class);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new AiServiceException("Failed to parse AI response: " + e.getOriginalMessage(), e);
         }
     }
@@ -182,7 +182,7 @@ public class AIModelService {
         if (history == null || history.isEmpty()) return "none";
         try {
             return objectMapper.writeValueAsString(history);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return "none";
         }
     }
