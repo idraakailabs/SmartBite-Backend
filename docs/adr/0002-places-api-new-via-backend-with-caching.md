@@ -1,6 +1,10 @@
 # ADR-0002: Area grounding with Google Places API (New), called only from the backend
 
-- **Status:** Proposed (implements owner decision D-012, 2026-10-11)
+- **Status:** Accepted (2026-10-11, by the owner, D-021). Implements D-012.
+- **Deviation recorded (D-021 item 2):** the owner's original implementation brief (§5 step 3) had Places data
+  grounding the prompt. This ADR deliberately does **not** put Places content in the prompt (only place ids and
+  coordinates may be cached) and verifies the hero after generation. The verified-pick rate is logged and counted
+  as a metric (`smartbite.places.verification` by outcome) so the choice can be revisited if it's low.
 - **Date:** 2026-10-11
 - **Deciders:** owner; backend-devops-expert (recommendation)
 

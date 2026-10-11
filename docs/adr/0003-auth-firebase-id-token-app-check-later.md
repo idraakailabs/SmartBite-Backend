@@ -1,6 +1,6 @@
 # ADR-0003: Authenticate v2 with Firebase ID tokens; Firebase App Check as a follow-up
 
-- **Status:** Proposed (implements owner decision D-011 and TECH-001 criterion 1)
+- **Status:** Accepted (2026-10-11, by the owner, D-021). Implements D-011 and TECH-001 criterion 1.
 - **Date:** 2026-10-11
 - **Deciders:** owner; backend-devops-expert (recommendation)
 

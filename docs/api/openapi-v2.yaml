@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: SmartBite API v2
-  version: 2.0.0-draft.1
+  version: 2.0.0-draft.2
   summary: Authenticated meal suggestions, recipes, reports and account data deletion for the SmartBite Android app.
   description: |
-    **Status: DRAFT for owner review (2026-10-11). Nothing in this file is implemented yet.**
+    **Status: agreed by the owner with amendments (D-021, 2026-10-11).** Draft 2 applies the amendment that
+    vegetarian allows eggs. Implementation status: see `docs/api/README.md`.
 
     Contract rules (see `docs/api/README.md` for the full semantics):
 
@@ -741,8 +742,9 @@ components:
       type: string
       enum: [non_vegetarian, vegetarian, vegan]
       description: |
-        Hard constraint. `vegetarian` = no meat, poultry, fish, seafood, gelatine **and no eggs** (South Asian
-        convention; see README "Diet rules"). `vegan` = additionally no dairy, honey or other animal products.
+        Hard constraint. `vegetarian` = no meat, poultry, fish, seafood or gelatine; **dairy and eggs are
+        allowed** (matches the app's onboarding copy, D-021). `vegan` = additionally no eggs, dairy, ghee, honey
+        or other animal products.
     SpiceLevel:
       type: string
       enum: [mild, medium, spicy, extra_spicy]

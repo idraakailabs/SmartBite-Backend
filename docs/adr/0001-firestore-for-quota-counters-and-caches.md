@@ -1,7 +1,7 @@
 # ADR-0001: Firestore (Admin SDK) for quota counters, caches and reports
 
-- **Status:** Proposed (implements owner decision D-011, 2026-10-11: "counters live in Firestore through the
-  Admin SDK; no new database")
+- **Status:** Accepted (2026-10-11, by the owner, D-021). Implements D-011: "counters live in Firestore through
+  the Admin SDK; no new database". Staging shares the Firebase project with the prefix `stg_` (D-021 item 5).
 - **Date:** 2026-10-11
 - **Deciders:** owner; backend-devops-expert (recommendation)
 

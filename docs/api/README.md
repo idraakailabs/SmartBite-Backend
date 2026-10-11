@@ -1,6 +1,6 @@
 # SmartBite API v2: contract summary
 
-> **Status: draft for owner review, 2026-10-11. Nothing here is implemented yet.** The machine-readable contract
+> **Status: agreed by the owner with amendments (D-021, 2026-10-11).** The machine-readable contract
 > is [openapi-v2.yaml](openapi-v2.yaml) (OpenAPI 3.1, linted with Redocly CLI: valid, 2 cosmetic warnings).
 > Decisions behind it: [ADRs](../adr/). Environment and deploy plan: [ENVIRONMENT.md](../ops/ENVIRONMENT.md).
 > Costs: [COSTS.md](../ops/COSTS.md). Product decisions referenced as `D-0xx` live in the Android repository's
@@ -99,8 +99,8 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
 6. **Strict parsing and validation:** a typed DTO with bean validation; the `category` must be in the enum (else
    `other`); lengths clipped; exactly the fields we asked for.
 7. **Diet enforcement:** drop any suggestion whose declared diet conflicts with the request, or whose name or
-   ingredients hit the server's deny-lexicon for the diet (meat, poultry, fish, seafood, gelatine; plus eggs for
-   vegetarian and vegan; plus dairy, ghee, honey for vegan). Also drop disliked foods, `recent_suggestions` and
+   ingredients hit the server's deny-lexicon for the diet (vegetarian: meat, poultry, fish, seafood, gelatine;
+   vegan: all of those plus eggs, dairy, ghee, honey). Also drop disliked foods, `recent_suggestions` and
    `session_excluded_dishes` matches. If fewer than 3 remain, regenerate once; then return what's left (1–3). Zero →
    `502 GENERATION_FAILED`, no quota used.
 8. Area verification and ranking (§7). 9. Compute reasons (below). 10. Commit quota → respond.
@@ -109,8 +109,8 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
 starts with less than 5 s of budget left. The app's read timeout for this call should be 30 s (today it's 90 s
 with 3 retries, BUG-019).
 
-**Diet rules (default, owner can change):** `vegetarian` excludes eggs (South Asian usage; the safer reading).
-`non_vegetarian` has no exclusions. The deny-lexicon is a safety net, not an allergy guarantee.
+**Diet rules (D-021):** `vegetarian` allows dairy and eggs (the app's onboarding copy says "Dairy and eggs are
+fine"). `vegan` excludes eggs, dairy, ghee and honey. `non_vegetarian` has no exclusions. The deny-lexicon is a safety net, not an allergy guarantee.
 
 **Evidence-backed reasons (fixes BUG-021):** the server, not the model, builds every reason by comparing a dish
 attribute with request data. Each reason lists its evidence; with no evidence there's no reason.

@@ -1,7 +1,7 @@
 # ADR-0004: Java 21 everywhere; move to a supported Spring Boot line before v2
 
-- **Status:** Proposed. The Java part implements D-011 ("Java version aligned between `pom.xml` and Docker"). The
-  Spring Boot part is **new and needs the owner's decision**.
+- **Status:** Accepted (2026-10-11, by the owner, D-021 item 3): Java 21, and Spring Boot 4.1.x first, in its
+  own commit, protected by a v1 golden-contract test.
 - **Date:** 2026-10-11
 - **Deciders:** owner; backend-devops-expert (recommendation)
 
