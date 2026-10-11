@@ -21,3 +21,13 @@ gemini:
 groq:
     api-key: ${GROQ_API_KEY:}
     base-url: https://api.groq.com/openai/v1
+
+smartbite:
+  v1:
+    # D-021 item 4: hardening that leaves the v1 request/response contract unchanged.
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+    rate-limit-per-minute: ${V1_RATE_LIMIT_PER_MINUTE:60}
+    rate-limit-per-hour: ${V1_RATE_LIMIT_PER_HOUR:600}
+    trusted-proxies: ${TRUSTED_PROXIES:1}
+    ai-connect-timeout: 3s
+    ai-read-timeout: 30s
