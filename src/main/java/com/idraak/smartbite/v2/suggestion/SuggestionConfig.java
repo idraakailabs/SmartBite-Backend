@@ -7,7 +7,7 @@ import com.idraak.smartbite.v2.config.V2Properties;
 import com.idraak.smartbite.v2.entitlement.EntitlementService;
 import com.idraak.smartbite.v2.quota.QuotaService;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
@@ -18,7 +18,7 @@ import java.time.Clock;
 public class SuggestionConfig {
 
     @Bean
-    @ConditionalOnMissingBean(AreaGrounding.class)
+    @ConditionalOnExpression("'${smartbite.v2.places.provider:disabled}' == 'disabled'")
     public AreaGrounding noPlacesAreaGrounding() {
         return new NoPlacesAreaGrounding();
     }
