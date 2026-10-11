@@ -1,4 +1,4 @@
-# Environments and configuration (v2 plan)
+# Environments and configuration (v2)
 
 > **Status: plan, 2026-10-11. Nothing here has been executed.** No Render service, setting or secret has been
 > created or changed. Every step marked "owner" needs the owner's explicit approval at the time it runs.
@@ -24,37 +24,50 @@ shipped), but v2 moves the active profile out of the file and requires `SPRING_P
 Secret = must be stored as a Render secret value (or secret file), never in Git, images, logs or chat. Values in
 the "staging" and "production" columns are defaults or examples, not secrets.
 
-| Name | Secret | Staging | Production | Purpose |
-|---|---|---|---|---|
-| `SPRING_PROFILES_ACTIVE` | no | `staging` | `prod` | Profile selection (required) |
-| `PORT` | no | set by Render | set by Render | Already used (`server.port`) |
-| `GROQ_API_KEY` | **yes** | staging key | production key | Existing. Rotate both after the Remote Config keys are removed (TECH-001) |
-| `GEMINI_API_KEY` | **yes** | staging key | production key | Existing (the app fails to start without it today) |
-| `FIREBASE_SERVICE_ACCOUNT_BASE64` | **yes** | base64 of the service-account JSON | same or separate SA | Admin SDK: token verification, Firestore, Remote Config template read |
-| `FIREBASE_PROJECT_ID` | no | project id | project id | Expected token audience; sanity check against the SA |
-| `FIRESTORE_COLLECTION_PREFIX` | no | `stg_` | *(empty)* | Keeps staging data apart |
-| `REVENUECAT_SECRET_API_KEY` | **yes** | v2 secret key | v2 secret key | Entitlement read and customer deletion |
-| `REVENUECAT_PROJECT_ID` | no | project id | project id | v2 API paths |
-| `REVENUECAT_ENTITLEMENT_LOOKUP_KEY` | no | `smartbite_pro` | `smartbite_pro` | Must match the dashboard and the app's `PREMIUM_ENTITLEMENT` |
-| `GOOGLE_PLACES_API_KEY` | **yes** | key (or unset with `fake`) | key | Places API (New), server only |
-| `PLACES_PROVIDER` | no | `fake` → `google` | `google` | `google`, `fake` or `disabled` |
-| `PLACES_NEARBY_GLOBAL_DAILY_CAP` | no | `20` | `150` | Nearby calls per UTC day (150 × 31 = 4,650 < 5,000 free) |
-| `PLACES_TEXT_GLOBAL_DAILY_CAP` | no | `200` | `3000` | Text Search (IDs Only) calls per UTC day |
-| `PLACES_NEARBY_PER_UID_DAILY` | no | `15` | `15` | Per-user Nearby misses per day |
-| `PLACES_CACHE_TTL` | no | `P7D` | `P7D` | Must stay ≤ `P30D` (validated at startup) |
-| `PLACES_VERIFY_ALTERNATIVES` | no | `false` | `false` | Verify all three picks, not just the hero |
-| `FREE_DAILY_SUGGESTIONS` | no | `3` | `3` | Fallback when the Remote Config template can't be read |
-| `RECIPE_STEPS_PREMIUM` | no | `true` | `true` | Fallback for the Remote Config key of the same name |
-| `RECIPE_FREE_PREVIEW_STEPS` | no | `2` | `2` | Steps shown to free users |
-| `REMOTE_CONFIG_SYNC_ENABLED` | no | `true` | `true` | Read `free_daily_suggestions` and `recipe_steps_premium` default values from the template every 5 min |
-| `ENTITLEMENT_CACHE_TTL_PREMIUM` | no | `PT5M` | `PT5M` | |
-| `ENTITLEMENT_CACHE_TTL_FREE` | no | `PT1M` | `PT1M` | |
-| `SUGGESTION_DEADLINE` | no | `PT25S` | `PT25S` | Whole-request budget |
-| `RECIPE_DEADLINE` | no | `PT40S` | `PT40S` | |
-| `CORS_ALLOWED_ORIGINS` | no | `*` | `*` | Applies to `/api/v1/**` only; `*` keeps v1 unchanged |
-| `LOG_UID_HASH_KEY` | **yes** | random 32 bytes (base64) | different random value | HMAC key for logging uids as hashes |
-| `JAVA_TOOL_OPTIONS` | no | e.g. `-XX:MaxRAMPercentage=75` | same | Replaces the hard-coded `-Xmx400m` once the instance size is known |
-| `APP_CHECK_ENFORCE` | no | *(not used yet)* | *(not used yet)* | Reserved for the App Check follow-up (ADR-0003) |
+**Final list (2026-10-11):** every `${…}` placeholder in `src/main/resources/application*.yaml` on
+`branch-01/v2-api` is listed here.
+- **Required** = the service can't serve v2 correctly without it in a deployed environment.
+- Durations use Spring's simple format (`5m`, `25s`, `7d`).
+- The **Default** column is the value used when the variable is unset.
+
+| Name | Required | Secret | Default | Staging | Production | Purpose |
+|---|---|---|---|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | **yes** | no | *(none: base config only)* | `staging` | `prod` | Profile selection. Unset, the staging/prod overrides (structured logs, Firestore prefix, fake-token ban) don't apply |
+| `PORT` | no | no | `8080` | set by Render | set by Render | `server.port` |
+| `GEMINI_API_KEY` | **yes** | **yes** | *(none: startup fails)* | staging key | production key | AI provider (v1 and v2). Rotate after the Remote Config keys are removed (TECH-001) |
+| `GROQ_API_KEY` | recommended | **yes** | empty (Groq models skipped) | staging key | production key | AI provider (v1 and v2). Rotate as above |
+| `FIREBASE_SERVICE_ACCOUNT_BASE64` | **yes** | **yes** | empty | base64 of the service-account JSON | same | Admin SDK: ID-token verification, Firestore, Remote Config template read |
+| `FIREBASE_PROJECT_ID` | **yes** | no | empty | project id | project id | Expected token audience; checked against the service account |
+| `FIRESTORE_COLLECTION_PREFIX` | no | no | `stg_` in `staging`, empty in `prod` | `stg_` | *(empty)* | Keeps staging data apart in the shared Firebase project (D-021) |
+| `SMARTBITE_STORES_MODE` | no | no | `firestore` | `firestore` | `firestore` | `memory` is for local runs only; `StartupGuard` refuses it unless in-memory stores are explicitly allowed |
+| `REVENUECAT_SECRET_API_KEY` | **yes** | **yes** | empty | v2 secret key | v2 secret key | Entitlement reads and customer deletion |
+| `REVENUECAT_PROJECT_ID` | **yes** | no | empty | project id | project id | RevenueCat API v2 paths |
+| `REVENUECAT_ENTITLEMENT_LOOKUP_KEY` | no | no | `smartbite_pro` | `smartbite_pro` | `smartbite_pro` | Must match the dashboard and the app's `PREMIUM_ENTITLEMENT` |
+| `ENTITLEMENT_PROVIDER` | no | no | `revenuecat` | `revenuecat` | `revenuecat` | `revenuecat` or a test fake |
+| `ENTITLEMENT_CACHE_TTL_PREMIUM` | no | no | `5m` | `5m` | `5m` | |
+| `ENTITLEMENT_CACHE_TTL_FREE` | no | no | `1m` | `1m` | `1m` | |
+| `GOOGLE_PLACES_API_KEY` | when `PLACES_PROVIDER=google` | **yes** | empty | key (unset while `fake`) | key | Places API (New), server only |
+| `PLACES_PROVIDER` | no | no | `disabled` | `fake`, then `google` | `google` | `google`, `fake` or `disabled` (`disabled` → every eat-out pick is labelled "Popular around") |
+| `PLACES_NEARBY_GLOBAL_DAILY_CAP` | no | no | `150` | `20` | `150` | Nearby calls per UTC day (150 × 31 = 4,650, under the 5,000 free) |
+| `PLACES_TEXT_GLOBAL_DAILY_CAP` | no | no | `3000` | `200` | `3000` | Text Search (IDs Only) calls per UTC day |
+| `PLACES_NEARBY_PER_UID_DAILY` | no | no | `15` | `15` | `15` | Per-user Nearby cache misses per day |
+| `PLACES_TEXT_PER_UID_DAILY` | no | no | `60` | `60` | `60` | Per-user Text Search calls per day |
+| `PLACES_CACHE_TTL` | no | no | `7d` | `7d` | `7d` | Must stay ≤ 30 days; `StartupGuard` refuses more (Service Specific Terms §14.3) |
+| `PLACES_VERIFY_ALTERNATIVES` | no | no | `false` | `false` | `false` | Verify all three picks, not just the hero |
+| `FREE_DAILY_SUGGESTIONS` | no | no | `3` | `3` | `3` | Fallback when the Remote Config template can't be read |
+| `RECIPE_STEPS_PREMIUM` | no | no | `true` | `true` | `true` | Fallback for the Remote Config key of the same name (D-014) |
+| `RECIPE_FREE_PREVIEW_STEPS` | no | no | `2` | `2` | `2` | Steps shown to free users |
+| `REMOTE_CONFIG_SYNC_ENABLED` | no | no | `true` | `true` | `true` | Read `free_daily_suggestions` and `recipe_steps_premium` from the template every 5 min |
+| `SUGGESTION_DEADLINE` | no | no | `25s` | `25s` | `25s` | Whole-request budget (the app's read timeout is 30 s) |
+| `RECIPE_DEADLINE` | no | no | `40s` | `40s` | `40s` | (The app's read timeout is 45 s) |
+| `CORS_ALLOWED_ORIGINS` | no | no | `*` | `*` | `*` | Applies to `/api/v1/**` only; `*` keeps v1 unchanged |
+| `V1_RATE_LIMIT_PER_MINUTE` | no | no | `60` | `60` | `60` | Per-IP limit on v1 (D-021 item 4) |
+| `V1_RATE_LIMIT_PER_HOUR` | no | no | `600` | `600` | `600` | Per-IP limit on v1 |
+| `TRUSTED_PROXIES` | no | no | `1` | `1` | `1` | Proxy hops to trust in `X-Forwarded-For` when resolving the client IP (Render adds one) |
+| `LOG_UID_HASH_KEY` | **yes** | **yes** | empty | random 32 bytes (base64) | a different random value | HMAC key for logging uids as hashes |
+| `JAVA_TOOL_OPTIONS` | no | no | — | e.g. `-XX:MaxRAMPercentage=75` | same | JVM sizing once the instance size is known |
+
+Not read by the code yet (reserved): `APP_CHECK_ENFORCE`, for the App Check follow-up (ADR-0003).
 
 Rate limits and timeouts also get properties with the defaults from `docs/api/README.md`; they only need env
 overrides if tuning is required.
@@ -83,7 +96,7 @@ overrides if tuning is required.
    Optionally restrict the key to Render's outbound IPs (Render publishes them per region; not verified here).
 4. **Render**: access, the staging service, and the plan choice for staging and production (§5).
 
-## 4. Draft staging deploy on Render (not executed)
+## 4. Staging deploy on Render (steps for the owner; not executed)
 
 Classification: every step below **changes remote state or may cost money** → owner approval per step.
 
@@ -108,8 +121,9 @@ Classification: every step below **changes remote state or may cost money** → 
    # v1 unchanged
    curl -s -X POST https://<staging-host>/api/v1/meal-suggestions -H 'Content-Type: application/json' -d @v1-sample.json
    ```
-7. Point the Android debug build's `BuildConfig` base URL at the staging host and run the end-to-end checks on the
-   Pixel_7 / Pixel_9 emulators (D-020).
+7. Point the Android debug build at the staging host by adding `SMARTBITE_STAGING_API_URL=https://<staging-host>/`
+   to the Android repo's `local.properties`, which becomes `BuildConfig.API_BASE_URL` for debug builds. Then run
+   the end-to-end checks on the Pixel_7 / Pixel_9 emulators (D-020).
 8. Rollback: redeploy the previous Render deploy (staging only; production untouched).
 
 Production follows the same steps later, with auto-deploy off, after staging sign-off and explicit approval.

@@ -1,11 +1,15 @@
 openapi: 3.1.0
 info:
   title: SmartBite API v2
-  version: 2.0.0-draft.2
+  version: 2.0.0-rc.1
   summary: Authenticated meal suggestions, recipes, reports and account data deletion for the SmartBite Android app.
   description: |
-    **Status: agreed by the owner with amendments (D-021, 2026-10-11).** Draft 2 applies the amendment that
-    vegetarian allows eggs. Implementation status: see `docs/api/README.md`.
+    **Status: agreed by the owner with amendments (D-021, 2026-10-11) and implemented on `branch-01/v2-api`
+    (not deployed).** Implementation status and the verified/pending split: `docs/api/README.md` §0.
+
+    **Null handling:** the service omits null members (global Jackson `non_null`, the same as v1). A nullable
+    field that is absent means null (for example `quota.limit` for Premium, `verification.unverified_reason` for
+    verified picks).
 
     Contract rules (see `docs/api/README.md` for the full semantics):
 
@@ -1702,7 +1706,7 @@ components:
                 examples: [area.radius_km]
               code:
                 type: string
-                examples: [out_of_range, required, too_long, invalid_value, invalid_timezone]
+                examples: [required, invalid_size, out_of_range, invalid_value, invalid_timezone]
               message:
                 type: string
         limit:

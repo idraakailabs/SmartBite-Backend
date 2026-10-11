@@ -6,6 +6,40 @@
 > Costs: [COSTS.md](../ops/COSTS.md). Product decisions referenced as `D-0xx` live in the Android repository's
 > `docs/DECISIONS.md`.
 
+## 0. Implementation status (2026-10-11)
+
+**Implemented on `branch-01/v2-api`.**
+
+| Commit | What |
+|---|---|
+| `fedc7cc` | v1 golden-contract test (written before the upgrade) |
+| `7408e61` | Spring Boot 4.1.1, Java 21 in `pom.xml` and Docker |
+| `541cd55` | v1 hardening: AI timeouts, per-IP rate limit, CORS on `/api/v1/**` only |
+| `56a53e4` | v2 foundations: Firebase ID-token auth, problem+json errors, config, logging without personal data, Actuator health |
+| `1b75444` | Quota (Firestore, atomic, user's day), RevenueCat entitlement, `GET /api/v2/me/quota` |
+| `a20d4d0` | `POST /api/v2/meal-suggestions`: taste-first prompt, provider chain, diet filter, evidence-based reasons |
+| `65f01d2` | Places (New) area pipeline, caches and spend caps |
+| `6b25c42` | `POST /api/v2/recipes` with the Premium step gate |
+| `3da6960` | `POST /api/v2/reports` |
+| `9736b1f` | `DELETE /api/v2/me` with a server-side retry for the RevenueCat deletion |
+
+**Verified (2026-10-11, development machine, JDK Corretto 21.0.7):**
+- `./mvnw -B verify`: **126 tests, 0 failures, 0 errors, 0 skipped. BUILD SUCCESS.** It produces
+  `target/smartbite-0.0.1-SNAPSHOT.jar`. The tests are unit, MockMvc, the v1 golden contract, and WireMock or
+  in-process fakes for the AI providers, Places, RevenueCat, the Firestore store and Remote Config.
+- The Android client (commit `4364739`) matches the contract on:
+  - paths and the quota `timezone` query parameter
+  - the `Idempotency-Key` and `X-Entitlement-Refresh` headers
+  - the `logged` history entry type
+  - the daily-limit problem fields (`limit`, `reset_at`)
+
+**Pending (not verified):**
+- the Docker image build (Docker isn't installed on the development machine; Render or CI will build it)
+- the Firestore emulator tests (transactions are covered against an in-memory store only)
+- real calls to Groq, Gemini, Google Places and RevenueCat
+- the Remote Config template read against the real project
+- the staging deploy and the end-to-end run with the Android debug build (`docs/ops/ENVIRONMENT.md` §4)
+
 ## 1. Endpoints
 
 | Method and path | Purpose | Quota | Rate limit (per uid, default) |
