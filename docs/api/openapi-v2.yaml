@@ -788,7 +788,15 @@ components:
     EntryType:
       type: string
       enum: [cooked, ate_out, suggested]
-      description: History entry type (D-010 renames "ordered" to "ate out").
+      description: Entry type for new history entries (D-010 renames "ordered" to "ate out").
+    HistoryEntryType:
+      type: string
+      enum: [cooked, ate_out, suggested, logged]
+      description: |
+        Entry type accepted in request history. `logged` = an entry saved before entry types existed; the app never
+        guesses a type for it. The server treats it as an eaten meal for variety and for `LOVED_BEFORE` /
+        `SIMILAR_TO_LOVED`, but never as evidence of cooking or eating out. `suggested` entries are never treated as
+        eaten.
     Reaction:
       type: string
       enum: [loved, okay, not_for_me]
@@ -1000,7 +1008,7 @@ components:
         meal_slot:
           $ref: '#/components/schemas/HistoryMealSlot'
         entry_type:
-          $ref: '#/components/schemas/EntryType'
+          $ref: '#/components/schemas/HistoryEntryType'
         reaction:
           oneOf:
             - $ref: '#/components/schemas/Reaction'

@@ -123,11 +123,15 @@ attribute with request data. Each reason lists its evidence; with no evidence th
 | `FAVORITE_PROTEIN` | `primary_protein` matches a `favorite_proteins` entry |
 | `LIKED_IN_TASTE_TEST` | The dish name matches a `liked_dishes` entry |
 | `SIMILAR_TO_LOVED` | The model's `similar_to` names a dish that is in history with reaction `loved` (or in `liked_dishes`) |
-| `LOVED_BEFORE` | The same dish is in history with reaction `loved` |
+| `LOVED_BEFORE` | The same dish is in history with reaction `loved` (entry type `cooked`, `ate_out` or `logged`) |
 | `FITS_COOKING_TIME` | Intent is `cook`/`anywhere` and the time estimate ≤ the user's `cooking_time` limit |
 | `FITS_SKILL` | Intent is `cook` and difficulty ≤ the user's skill |
 | `REFINE_APPLIED` | A refine option the dish satisfies (`quicker` ≤ 30 min, `milder`, `vegetarian_today`) |
 | `FRESH_CHOICE` | History has entries and the dish isn't among the last 7 days' dishes or recent suggestions |
+
+History `entry_type` accepts `cooked`, `ate_out`, `suggested` and `logged`. `logged` marks entries saved before
+entry types existed (the app never guesses their type): they count as eaten meals for variety, `LOVED_BEFORE` and
+`SIMILAR_TO_LOVED`, but never as cooked-vs-ate-out evidence. `suggested` entries are never treated as eaten.
 | `FOUND_NEARBY` | Verification status is `verified` |
 
 No budget reason (no price data), no goal, nutrition, health or calorie reason. Maximum 5, strongest first.
