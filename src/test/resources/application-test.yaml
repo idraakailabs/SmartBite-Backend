@@ -3,3 +3,18 @@ gemini:
   api-key: test-gemini-key
 groq:
   api-key: test-groq-key
+smartbite:
+  v2:
+    auth:
+      fake-tokens-enabled: true
+    stores:
+      mode: in-memory
+      allow-in-memory: true
+    logging:
+      uid-hash-key: dGVzdC1vbmx5LWxvZy1oYXNoLWtleS1ub3Qtc2VjcmV0
+    quota:
+      remote-config-sync-enabled: false
+    entitlement:
+      provider: fake
+    places:
+      provider: fake

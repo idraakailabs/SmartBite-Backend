@@ -1,0 +1,10 @@
+# Staging (Render). Secrets come from environment variables only.
+logging:
+  structured:
+    format:
+      console: ecs
+smartbite:
+  v2:
+    stores:
+      mode: firestore
+      collection-prefix: ${FIRESTORE_COLLECTION_PREFIX:stg_}

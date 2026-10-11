@@ -1,0 +1,11 @@
+# Production (Render). Secrets come from environment variables only.
+logging:
+  structured:
+    format:
+      console: ecs
+smartbite:
+  v2:
+    stores:
+      mode: firestore
+    auth:
+      fake-tokens-enabled: false

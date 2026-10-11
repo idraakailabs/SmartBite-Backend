@@ -26,6 +26,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "AI service error", "message", ex.getMessage()));
     }
 
+    /** Unknown paths (e.g. unexposed Actuator endpoints) were 500 because of the catch-all below; now 404. */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<Map<String, String>> handleNotFound(Exception ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "Not found", "message", "No such endpoint"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGeneral(Exception ex) {
         return ResponseEntity.internalServerError()

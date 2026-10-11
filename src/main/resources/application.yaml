@@ -1,11 +1,11 @@
 server:
   port: ${PORT:8080}
+  # Bodies are capped at 32 KiB by the v2 body-size filter; Tomcat's own cap on headers stays default.
 
 spring:
   application:
     name: smartbite
-  profiles:
-    active: local
+  # No hard-coded active profile: set SPRING_PROFILES_ACTIVE (staging | prod) on each environment.
   jackson:
     property-naming-strategy: SNAKE_CASE
     default-property-inclusion: non_null
@@ -31,3 +31,100 @@ smartbite:
     trusted-proxies: ${TRUSTED_PROXIES:1}
     ai-connect-timeout: 3s
     ai-read-timeout: 30s
+
+  # v2 settings (docs/api/README.md, docs/ops/ENVIRONMENT.md). Secrets only through environment variables.
+  v2:
+    auth:
+      fake-tokens-enabled: false
+      reauth-max-age: 5m
+      pre-auth-per-ip-per-minute: 120
+    stores:
+      mode: ${SMARTBITE_STORES_MODE:firestore}
+      allow-in-memory: false
+      collection-prefix: ${FIRESTORE_COLLECTION_PREFIX:}
+      firebase-project-id: ${FIREBASE_PROJECT_ID:}
+      service-account-base64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:}
+      operation-timeout: 3s
+    limits:
+      max-body-bytes: 32768
+      suggestions-per-minute: 6
+      suggestions-per-hour: 40
+      recipes-per-minute: 6
+      recipes-per-hour: 30
+      reports-per-hour: 10
+      reports-per-day: 30
+      quota-per-minute: 30
+      delete-per-hour: 3
+    logging:
+      uid-hash-key: ${LOG_UID_HASH_KEY:}
+    quota:
+      free-daily-suggestions: ${FREE_DAILY_SUGGESTIONS:3}
+      reservation-ttl: 2m
+      timezone-repin-after: 24h
+      remote-config-sync-enabled: ${REMOTE_CONFIG_SYNC_ENABLED:true}
+      remote-config-refresh: 5m
+      idempotent-replay-ttl: 10m
+    entitlement:
+      provider: ${ENTITLEMENT_PROVIDER:revenuecat}
+      base-url: https://api.revenuecat.com/v2
+      secret-api-key: ${REVENUECAT_SECRET_API_KEY:}
+      project-id: ${REVENUECAT_PROJECT_ID:}
+      lookup-key: ${REVENUECAT_ENTITLEMENT_LOOKUP_KEY:smartbite_pro}
+      ttl-premium: ${ENTITLEMENT_CACHE_TTL_PREMIUM:5m}
+      ttl-free: ${ENTITLEMENT_CACHE_TTL_FREE:1m}
+      stale-if-error: 24h
+      refresh-min-interval: 30s
+      connect-timeout: 2s
+      read-timeout: 3s
+    ai:
+      suggestion-deadline: ${SUGGESTION_DEADLINE:25s}
+      recipe-deadline: ${RECIPE_DEADLINE:40s}
+      connect-timeout: 3s
+      read-timeout: 15s
+      recipe-read-timeout: 30s
+      min-remaining-for-attempt: 5s
+      groq-base-url: ${groq.base-url}
+      groq-api-key: ${groq.api-key}
+      gemini-base-url: ${gemini.base-url}
+      gemini-api-key: ${gemini.api-key}
+      prompt-version: suggest-v2.1
+      recipe-prompt-version: recipe-v2.1
+    places:
+      provider: ${PLACES_PROVIDER:disabled}
+      api-key: ${GOOGLE_PLACES_API_KEY:}
+      base-url: https://places.googleapis.com/v1
+      nearby-global-daily-cap: ${PLACES_NEARBY_GLOBAL_DAILY_CAP:150}
+      text-global-daily-cap: ${PLACES_TEXT_GLOBAL_DAILY_CAP:3000}
+      nearby-per-uid-daily: ${PLACES_NEARBY_PER_UID_DAILY:15}
+      text-per-uid-daily: ${PLACES_TEXT_PER_UID_DAILY:60}
+      cache-ttl: ${PLACES_CACHE_TTL:7d}
+      verify-alternatives: ${PLACES_VERIFY_ALTERNATIVES:false}
+      connect-timeout: 2s
+      read-timeout: 4s
+      stage-budget: 5s
+      included-types: [restaurant]
+    recipes:
+      steps-premium: ${RECIPE_STEPS_PREMIUM:true}
+      free-preview-steps: ${RECIPE_FREE_PREVIEW_STEPS:2}
+      cache-ttl: 30d
+    deletion:
+      retry-interval: 15m
+      retry-window: 24h
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+  health:
+    # Liveness must not depend on Firestore or providers; readiness stays simple too.
+    defaults:
+      enabled: false
+    ping:
+      enabled: true

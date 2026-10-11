@@ -29,6 +29,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<wiremock.version>3.13.2</wiremock.version>
+		<firebase-admin.version>9.11.0</firebase-admin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -44,6 +45,18 @@
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- Firebase Admin SDK: ID-token verification, Firestore and the Remote Config template (ADR-0001, ADR-0003) -->
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>${firebase-admin.version}</version>
 		</dependency>
 
 		<dependency>
