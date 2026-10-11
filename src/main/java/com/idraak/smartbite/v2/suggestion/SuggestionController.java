@@ -37,7 +37,7 @@ public class SuggestionController {
         return service.suggest(user.uid(), request, validKey(idempotencyKey), Boolean.TRUE.equals(refresh));
     }
 
-    static String validKey(String key) {
+    public static String validKey(String key) {
         if (key == null) return null;
         try {
             return UUID.fromString(key).toString();
