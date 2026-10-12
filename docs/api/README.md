@@ -22,6 +22,8 @@
 | `6b25c42` | `POST /api/v2/recipes` with the Premium step gate |
 | `3da6960` | `POST /api/v2/reports` |
 | `9736b1f` | `DELETE /api/v2/me` with a server-side retry for the RevenueCat deletion |
+| `a818861` | Contract fixtures shared with the Android app; `verification.attribution` on verified picks |
+| `7ac27d7` | `DocumentStore` contract tests, in memory and on the Firestore emulator |
 
 **Verified (2026-10-11, development machine, JDK Corretto 21.0.7):**
 - `./mvnw -B verify`: **126 tests, 0 failures, 0 errors, 0 skipped. BUILD SUCCESS.** It produces
@@ -33,9 +35,12 @@
   - the `logged` history entry type
   - the daily-limit problem fields (`limit`, `reset_at`)
 
+**Update (2026-10-12):** `./mvnw -B verify` gives 154 tests, 0 failures, 11 skipped. The 11 skipped are the
+Firestore emulator store tests, which passed 11/11 in a separate run against the emulator (Firebase CLI 15.33.0).
+The Android app and this service now share golden request and response fixtures (`docs/TECHNICAL.md` §6).
+
 **Pending (not verified):**
-- the Docker image build (Docker isn't installed on the development machine; Render or CI will build it)
-- the Firestore emulator tests (transactions are covered against an in-memory store only)
+- the Docker image build (Docker needs WSL2, which is off on the development machine; Render or CI will build it)
 - real calls to Groq, Gemini, Google Places and RevenueCat
 - the Remote Config template read against the real project
 - the staging deploy and the end-to-end run with the Android debug build (`docs/ops/ENVIRONMENT.md` §4)
@@ -353,8 +358,8 @@ production, `stg_` in staging) so staging and production never share counters if
 - Java 21 in `pom.xml` and Docker ([ADR-0004](../adr/0004-java-21-and-spring-boot-baseline.md)).
 - Tests: unit (quota maths and timezone pinning, diet filter, reason builder, geohash/cell maths, gating), MockMvc
   (auth, validation, error bodies, v1 golden-contract test), WireMock fakes for Groq, Gemini, Places and RevenueCat
-  (429/5xx/timeout/garbage paths), and the Firestore emulator for transactions (needs Docker or the Firebase CLI
-  locally; neither Docker nor the CLI was found on the development machine on 2026-10-11).
+  (429/5xx/timeout/garbage paths), and the Firestore emulator for transactions (`FirestoreDocumentStoreEmulatorTest`, run with the
+  Firebase CLI; passed 11/11 on 2026-10-12).
 - A verified `docker build` before the staging deploy (Docker isn't installed locally; see ENVIRONMENT.md).
 
 ## 17. What the Android app needs to do (for the handoff)
