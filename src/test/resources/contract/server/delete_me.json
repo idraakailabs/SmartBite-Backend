@@ -1,0 +1,9 @@
+{
+  "status" : "completed",
+  "steps" : {
+    "revenuecat_customer" : "not_found",
+    "quota_counter" : "not_found",
+    "reports" : "none"
+  },
+  "reports_anonymized" : 0
+}

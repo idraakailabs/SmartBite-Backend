@@ -1,0 +1,12 @@
+{
+  "quota" : {
+    "is_premium" : false,
+    "unlimited" : false,
+    "limit" : 3,
+    "used" : 0,
+    "remaining" : 3,
+    "day" : "2026-10-12",
+    "timezone" : "Asia/Karachi",
+    "reset_at" : "2026-10-12T19:00:00Z"
+  }
+}

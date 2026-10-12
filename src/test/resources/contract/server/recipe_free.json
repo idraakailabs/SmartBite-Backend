@@ -1,0 +1,62 @@
+{
+  "recipe_id" : "rcp_b7edf72a9aee",
+  "dish" : "Chicken Karahi",
+  "origin" : {
+    "cuisine" : "Pakistani",
+    "region" : "Lahore",
+    "label" : "Pakistani · Lahore style"
+  },
+  "servings" : 4,
+  "difficulty" : "medium",
+  "times" : {
+    "prep_minutes" : 15,
+    "cook_minutes" : 35,
+    "rest_minutes" : 0,
+    "total_minutes" : 50
+  },
+  "ingredient_groups" : [ {
+    "title" : "For the karahi",
+    "items" : [ {
+      "item" : "Chicken, bone-in",
+      "display_quantity" : "4 pao",
+      "quantity" : 4.0,
+      "unit" : "pao",
+      "metric" : {
+        "quantity" : 1000.0,
+        "unit" : "g"
+      },
+      "optional" : false,
+      "is_substitution" : false,
+      "substitutes" : [ ]
+    }, {
+      "item" : "Salt",
+      "display_quantity" : "to taste",
+      "metric" : {
+        "unit" : "to_taste"
+      },
+      "optional" : false,
+      "is_substitution" : false,
+      "substitutes" : [ ]
+    } ]
+  } ],
+  "steps" : [ {
+    "number" : 1,
+    "instruction" : "Heat the oil.",
+    "key_quantities" : [ ],
+    "cook_minutes" : 2
+  }, {
+    "number" : 2,
+    "instruction" : "Add the chicken and fry.",
+    "key_quantities" : [ "1 kg chicken" ],
+    "cook_minutes" : 8,
+    "timer_seconds" : 480
+  } ],
+  "total_steps" : 4,
+  "locked" : true,
+  "locked_reason" : "PREMIUM_REQUIRED",
+  "tips" : [ ],
+  "safety_note" : "This recipe was written by AI. Check every ingredient for allergens, and cook meat, poultry and eggs until they're cooked through.",
+  "is_premium" : false,
+  "cached" : false,
+  "generated_at" : "2026-10-12T03:04:41.284730300Z"
+}

@@ -1,0 +1,9 @@
+{
+  "dish": "Chicken Karahi",
+  "origin": {
+    "cuisine": "Pakistani",
+    "region": "Lahore"
+  },
+  "servings": 4,
+  "diet": "non_vegetarian"
+}

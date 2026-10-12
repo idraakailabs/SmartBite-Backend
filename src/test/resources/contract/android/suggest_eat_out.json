@@ -1,0 +1,34 @@
+{
+  "intent": "eat_out",
+  "timezone": "Asia/Karachi",
+  "area": {
+    "lat": 31.47,
+    "lng": 74.27,
+    "radius_km": 3.0,
+    "label": "Johar Town, Lahore",
+    "city": "Lahore",
+    "country": "Pakistan"
+  },
+  "profile": {
+    "diet": "non_vegetarian",
+    "spice_tolerance": "spicy",
+    "top_cuisines": [
+      "Pakistani"
+    ],
+    "favorite_proteins": [
+      "Chicken"
+    ],
+    "liked_dishes": [
+      "Chicken Karahi"
+    ],
+    "cooking_time": "up_to_60",
+    "cooking_skill": "beginner",
+    "household_size": 4
+  },
+  "session_excluded_dishes": [
+    "Beef Nihari"
+  ],
+  "refine": {
+    "milder": true
+  }
+}

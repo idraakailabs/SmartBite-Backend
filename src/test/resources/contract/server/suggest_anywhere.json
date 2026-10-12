@@ -1,0 +1,181 @@
+{
+  "request_id" : "2b3ceb8b-800f-4744-aed5-8aab7ddd2a03",
+  "generated_at" : "2026-10-12T03:05:08.099598800Z",
+  "meal_slot" : "breakfast",
+  "intent" : "anywhere",
+  "area_context" : {
+    "mode" : "none",
+    "places_grounding" : "skipped"
+  },
+  "suggestions" : [ {
+    "id" : "sug_1",
+    "name" : "Chicken Karahi",
+    "short_description" : "A tasty Chicken Karahi.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "non_vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "spicy",
+    "primary_protein" : "Chicken",
+    "key_ingredients" : [ "Chicken", "Tomatoes" ],
+    "total_time_minutes" : 50,
+    "difficulty" : "medium",
+    "servings" : 4,
+    "reasons" : [ {
+      "code" : "LIKED_IN_TASTE_TEST",
+      "text" : "You picked Chicken Karahi in your taste test",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.liked_dishes",
+        "user_value" : "Chicken Karahi",
+        "dish_value" : "Chicken Karahi"
+      } ]
+    }, {
+      "code" : "FAVORITE_CUISINE",
+      "text" : "From Pakistani cuisine, one of your favourites",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.top_cuisines",
+        "user_value" : "Pakistani",
+        "dish_value" : "Pakistani"
+      } ]
+    }, {
+      "code" : "FAVORITE_PROTEIN",
+      "text" : "Chicken is one of your favourites",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.favorite_proteins",
+        "user_value" : "Chicken",
+        "dish_value" : "Chicken"
+      } ]
+    }, {
+      "code" : "SPICE_MATCH",
+      "text" : "Spicy, the way you like it",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.spice_tolerance",
+        "user_value" : "spicy",
+        "dish_value" : "spicy"
+      } ]
+    }, {
+      "code" : "FITS_COOKING_TIME",
+      "text" : "About 50 min, within your usual cooking time",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.cooking_time",
+        "user_value" : "up_to_60",
+        "dish_value" : "50 min (estimate)"
+      } ]
+    } ],
+    "verification" : {
+      "status" : "none"
+    }
+  }, {
+    "id" : "sug_2",
+    "name" : "Seekh Kebab",
+    "short_description" : "A tasty Seekh Kebab.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "non_vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "spicy",
+    "primary_protein" : "Beef",
+    "key_ingredients" : [ "Beef" ],
+    "total_time_minutes" : 50,
+    "difficulty" : "medium",
+    "servings" : 4,
+    "reasons" : [ {
+      "code" : "FAVORITE_CUISINE",
+      "text" : "From Pakistani cuisine, one of your favourites",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.top_cuisines",
+        "user_value" : "Pakistani",
+        "dish_value" : "Pakistani"
+      } ]
+    }, {
+      "code" : "SPICE_MATCH",
+      "text" : "Spicy, the way you like it",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.spice_tolerance",
+        "user_value" : "spicy",
+        "dish_value" : "spicy"
+      } ]
+    }, {
+      "code" : "FITS_COOKING_TIME",
+      "text" : "About 50 min, within your usual cooking time",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.cooking_time",
+        "user_value" : "up_to_60",
+        "dish_value" : "50 min (estimate)"
+      } ]
+    } ],
+    "verification" : {
+      "status" : "none"
+    }
+  }, {
+    "id" : "sug_3",
+    "name" : "Daal Mash",
+    "short_description" : "A tasty Daal Mash.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "medium",
+    "key_ingredients" : [ "Urad daal", "Butter" ],
+    "total_time_minutes" : 30,
+    "difficulty" : "easy",
+    "servings" : 4,
+    "reasons" : [ {
+      "code" : "FAVORITE_CUISINE",
+      "text" : "From Pakistani cuisine, one of your favourites",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.top_cuisines",
+        "user_value" : "Pakistani",
+        "dish_value" : "Pakistani"
+      } ]
+    }, {
+      "code" : "FITS_COOKING_TIME",
+      "text" : "About 30 min, within your usual cooking time",
+      "evidence" : [ {
+        "source" : "profile",
+        "field" : "profile.cooking_time",
+        "user_value" : "up_to_60",
+        "dish_value" : "30 min (estimate)"
+      } ]
+    } ],
+    "verification" : {
+      "status" : "none"
+    }
+  } ],
+  "quota" : {
+    "is_premium" : false,
+    "unlimited" : false,
+    "limit" : 3,
+    "used" : 1,
+    "remaining" : 2,
+    "day" : "2026-10-12",
+    "timezone" : "Asia/Karachi",
+    "reset_at" : "2026-10-12T19:00:00Z"
+  },
+  "meta" : {
+    "prompt_version" : "suggest-v2.1",
+    "degraded" : false,
+    "idempotent_replay" : false
+  }
+}
