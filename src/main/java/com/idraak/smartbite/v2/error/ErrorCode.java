@@ -16,7 +16,9 @@ public enum ErrorCode {
     RATE_LIMITED(429, "rate-limited", "Too many requests"),
     INTERNAL_ERROR(500, "internal-error", "Something went wrong"),
     GENERATION_FAILED(502, "generation-failed", "We couldn't put together safe picks"),
-    PROVIDER_UNAVAILABLE(503, "provider-unavailable", "Our food brain is busy");
+    PROVIDER_UNAVAILABLE(503, "provider-unavailable", "Our food brain is busy"),
+    /** The server has no database configured yet (history and profile endpoints, D-024). */
+    FEATURE_UNAVAILABLE(503, "feature-unavailable", "This isn't available yet");
 
     private final int status;
     private final String slug;

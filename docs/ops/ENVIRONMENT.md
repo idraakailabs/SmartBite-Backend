@@ -41,7 +41,10 @@ the "staging" and "production" columns are defaults or examples, not secrets.
 | `FIREBASE_SERVICE_ACCOUNT_BASE64` | **yes** | **yes** | empty | base64 of the service-account JSON | same | Admin SDK: ID-token verification, Firestore, Remote Config template read |
 | `FIREBASE_PROJECT_ID` | **yes** | no | empty | project id | project id | Expected token audience; checked against the service account |
 | `FIRESTORE_COLLECTION_PREFIX` | no | no | `stg_` in `staging`, empty in `prod` | `stg_` | *(empty)* | Keeps staging data apart in the shared Firebase project (D-021) |
-| `SMARTBITE_STORES_MODE` | no | no | `firestore` | `firestore` | `firestore` | `memory` is for local runs only; `StartupGuard` refuses it unless in-memory stores are explicitly allowed |
+| `SMARTBITE_STORES_MODE` | no | no | `firestore` | `firestore` | `firestore` | `postgres` keeps the server's documents in our database (needs `DATABASE_URL`, D-024). `in-memory` is for local runs only; `StartupGuard` refuses it unless in-memory stores are explicitly allowed. Since 2026-10-16 the `staging`/`prod` profiles read this variable instead of hard-coding `firestore` |
+| `DATABASE_URL` | for user data | **yes** | empty | the staging database's **Internal** URL | the production database's Internal URL | Our PostgreSQL (D-024). Render's connection string works as-is. Empty: history and profile endpoints answer 503 `FEATURE_UNAVAILABLE` |
+| `DATABASE_USERNAME`, `DATABASE_PASSWORD` | no | password: **yes** | empty | — | — | Only with a `jdbc:` URL; Render's URL already contains them |
+| `DATABASE_MAX_POOL_SIZE` | no | no | `5` | `5` | `5` | Connections per instance; keep within the database plan's limit |
 | `REVENUECAT_SECRET_API_KEY` | **yes** | **yes** | empty | v2 secret key | v2 secret key | Entitlement reads and customer deletion |
 | `REVENUECAT_PROJECT_ID` | **yes** | no | empty | project id | project id | RevenueCat API v2 paths |
 | `REVENUECAT_ENTITLEMENT_LOOKUP_KEY` | no | no | `smartbite_pro` | `smartbite_pro` | `smartbite_pro` | Must match the dashboard and the app's `PREMIUM_ENTITLEMENT` |

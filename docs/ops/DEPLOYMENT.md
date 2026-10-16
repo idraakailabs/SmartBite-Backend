@@ -394,3 +394,75 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
 - [ ] A Google Places key and budget (`PLACES_PROVIDER=google`).
 - [ ] A custom domain.
+
+## 15. User data on our database (D-024): staging and production
+
+**Built on `branch-02/user-history` (backend) and `branch-13/user-history` (Android), 2026-10-16. Not deployed.**
+Everything is off until you set `DATABASE_URL` and turn on two Remote Config keys, so merging changes nothing for
+users by itself.
+
+### 15.1 Costs
+| Item | Cost |
+|---|---|
+| Staging database | `smartbite-db` already exists (Free plan, Singapore). Free: $0, expires 30 days after creation, no backups, test data only |
+| Production database | Render Postgres `0.1c-256mb` about **$6/month** plus $0.30/GB storage (1 GB to start), with backups. Same region as the production service. Create it only at launch |
+| Web services | Unchanged. The database adds no instance |
+
+### 15.2 Staging (owner)
+1. **Merge the feature into staging:** merge `branch-02/user-history` into `staging` and push. The staging
+   service redeploys. With no `DATABASE_URL` it behaves exactly as before.
+2. **Connect the staging database:**
+   1. Render → **smartbite-db** → **Connect** → copy the **Internal Database URL**.
+   2. smartbite-api-staging → **Environment** → add **`DATABASE_URL`** = that URL (as a secret) → Save. The
+      service redeploys.
+   3. The log should show `database ready; migrations applied=2 schema_version=2`.
+3. **Optional:** set `SMARTBITE_STORES_MODE=postgres` to also move the server's own documents (quota, caches,
+   reports) to the database. Staging Firestore data (`stg_`) isn't copied; it's test data.
+4. **Turn it on for the debug app only.** In Firebase Remote Config:
+   - add a conditional value `backend_user_data_enabled` = `true` for the condition "App is
+     `com.idraak.ai.smartbite.debug`"
+   - keep the default `false`
+   - `api_v2_enabled` must already be on for the debug app
+5. **Install the debug app** from `branch-13/user-history` (with `SMARTBITE_STAGING_API_URL` set) and sign in with
+   a **test** account. Check:
+   - **Existing history uploads:** log a meal; within a few seconds `meal_history` has a row (see the SQL
+     below).
+   - **Profile import:** open Profile. The profile comes from the server: the first read imports the
+     Firestore document, if any (`source = firestore_import`).
+   - **Second phone:** sign in with the same account on a second phone or emulator (debug build). The history
+     and favourites appear after the first sync.
+   - **Edits:** edit and delete on one phone, and the changes reach the other.
+   - **Account deletion** (test account only): `steps.user_data` = `deleted`, and the rows are gone.
+6. **Inspect the data (read-only).** In smartbite-db → **Connect** → PSQL command, from a trusted machine:
+   ```sql
+   select count(*) from meal_history;
+   select uid, source, updated_at from user_profile order by updated_at desc limit 5;
+   select uid, last_seen_at from user_activity order by last_seen_at desc limit 5;
+   ```
+
+### 15.3 Production (owner, later, after the app release that contains this code)
+1. **Create the database:** a Render Postgres **0.1c-256mb ($6)**, 1 GB, **same region as the production
+   service**. Check **Recovery** (backups and point-in-time recovery).
+2. **Connect it:** on the production service, set `DATABASE_URL` to its Internal URL. That's a deploy; the
+   migrations run at startup.
+3. **Release the app** (a Play update) with this code. Nothing changes for users yet.
+4. **Turn it on:** in Remote Config, `backend_user_data_enabled` = `true` (with `api_v2_enabled` already on).
+   - Phones upload their local history on their next sync.
+   - Profiles are copied from Firestore on each user's first read.
+   - Consider a percentage rollout (Remote Config condition: user in random percentile) for the first days.
+5. **Update the hosted privacy policy and the Play Data safety form first.** History, favourites, notes and the
+   profile become stored on our servers. The repository copy is updated: `legal/privacy-policy.html` in the
+   Android repo.
+
+### 15.4 Rollback
+- **Switch it off:** set `backend_user_data_enabled` back to `false`. Apps return to Firestore for the profile,
+  and history stays on the phones (nothing is deleted).
+- **Caveat:** profile edits made while it was on exist only in our database, and Firestore holds the older copy.
+  Phones keep their local copy, so only a reinstall would show the older Firestore profile.
+- **Keep the database:** turning it back on resumes where it left off.
+
+### 15.5 Not migrated, by design
+- **Firestore stays as it is:** no bulk export, and no deletion. Profiles are copied per user on first read, so
+  users who never open the new app version keep only their Firestore copy, as today.
+- **History older than 24 months** stays on the phone and isn't uploaded.
+

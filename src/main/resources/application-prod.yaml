@@ -6,6 +6,7 @@ logging:
 smartbite:
   v2:
     stores:
-      mode: firestore
+      # firestore (default) or postgres (our own database; needs DATABASE_URL), D-024.
+      mode: ${SMARTBITE_STORES_MODE:firestore}
     auth:
       fake-tokens-enabled: false

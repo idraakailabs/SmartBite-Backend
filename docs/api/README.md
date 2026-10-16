@@ -57,6 +57,9 @@ can report `revenuecat_customer: skipped` on staging, where customer deletion is
 | `POST /api/v2/reports` | Report a suggestion or recipe | No | 10/h, 30/day |
 | `GET /api/v2/me/quota?timezone=` | Read today's allowance without using it | No | 30/min |
 | `DELETE /api/v2/me` | Delete server-side data and the RevenueCat customer (account deletion) | No | 3/h |
+| `GET`/`PUT /api/v2/me/profile` | The app's profile in our database; the first read imports the legacy Firestore profile (D-024) | No | 30/min |
+| `PUT /api/v2/me/device` | This device's FCM token (D-024) | No | 30/min (shared with profile) |
+| `GET`/`PUT /api/v2/me/history` | Meal history and favourites sync, 24-month retention (D-024) | No | 30/min |
 | `GET /actuator/health` | Platform health check; no auth, no details | n/a | n/a |
 | `POST /api/v1/meal-suggestions` | **Unchanged** legacy endpoint for older app versions | n/a | None today; a per-IP limit is proposed and needs approval (§14) |
 
@@ -364,6 +367,26 @@ production, `stg_` in staging) so staging and production never share counters if
   (429/5xx/timeout/garbage paths), and the Firestore emulator for transactions (`FirestoreDocumentStoreEmulatorTest`, run with the
   Firebase CLI; passed 11/11 on 2026-10-12).
 - A verified `docker build` before the staging deploy (Docker isn't installed locally; see ENVIRONMENT.md).
+
+## 18. User data in our own database (D-024, 2026-10-16)
+
+The profile, FCM token, meal history and favourites move from Firestore and the phone to our PostgreSQL. The
+endpoints need `DATABASE_URL`; without it they answer `503 FEATURE_UNAVAILABLE` and nothing else changes.
+
+- **Profile** (`/api/v2/me/profile`): the app's own JSON object, stored as-is (`jsonb`), top-level keys merged on
+  `PUT`. On a user's first `GET` with no row, the legacy Firestore document `users/{uid}` is read once and copied
+  (Firestore's `onboardingComplete` becomes the app's `isOnboardingComplete`; `fcmToken` moves to the device
+  column). Firestore is never written, except that account deletion deletes `users/{uid}`.
+- **Device** (`/api/v2/me/device`): the FCM token, previously written straight to Firestore.
+- **History** (`/api/v2/me/history`): upload is batches of up to 100 entries plus favourite changes; the latest
+  client `updated_at` wins per entry id and per favourite name. Download is changes since a cursor, oldest first,
+  with tombstones for deletions; rows changed in the last 2 s are left for the next call so a cursor never skips
+  a commit. Entries logged over 24 months ago aren't stored; a daily job deletes those that age out and the
+  history of accounts that haven't synced for 24 months.
+- **Isolation**: every query is keyed by the uid of the verified ID token; no endpoint accepts a uid.
+- **Account deletion** (`DELETE /api/v2/me`) also deletes history, favourites, the profile row and the legacy
+  Firestore profile (`steps.user_data`).
+- Schema, migrations and the optional Postgres document store: [../TECHNICAL.md](../TECHNICAL.md) §9.
 
 ## 17. What the Android app needs to do (for the handoff)
 

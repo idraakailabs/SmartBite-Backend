@@ -9,7 +9,7 @@ in the Android repository's `docs/`.
 |---|---|
 | Branch | `branch-01/v2-api` (not merged to `master`; not pushed or deployed) |
 | Phase | Deployment prepared ([BE-018](#be-018)); the owner deploys (Render Pro workspace bought 2026-10-16) |
-| Next task | [BE-010](#be-010) staging round on Render, following [DEPLOYMENT.md](ops/DEPLOYMENT.md) §9.2 (owner) |
+| Next task | [BE-010](#be-010) staging round on Render, following [DEPLOYMENT.md](ops/DEPLOYMENT.md) §9.2 (owner); then D-024 on staging: [DEPLOYMENT.md](ops/DEPLOYMENT.md) §15 |
 | Last verified | 2026-10-16: `./mvnw -B verify` 162 tests, 0 failures, 11 skipped (emulator tests, run separately: 11/11 pass); local jar smoke test (DEPLOYMENT.md §9.1) |
 
 ## Phase 2: v2 API (Revision 2)
@@ -35,5 +35,7 @@ in the Android repository's `docs/`.
 | <a id="be-018"></a>BE-018 | Deployment preparation for Render: config guard, staging safety, Docker sizing, graceful shutdown, guide | P0 | Done (2026-10-16) | | Misconfigured deploys refuse to start; staging can't delete RevenueCat customers; tests and smoke test pass; guide and checklist written |
 | <a id="be-019"></a>BE-019 | Verify the client IP behind Render's proxy ([BE-BUG-006](BUGS.md#be-bug-006)) | P0 | Not started (on staging) | BE-010 | DEPLOYMENT.md §9.2 step 5 passes |
 | <a id="be-020"></a>BE-020 | v1 error body and fallback ([BE-BUG-007](BUGS.md#be-bug-007)) | P2 | Proposed (v1 is frozen; needs owner approval) | | v1 errors no longer include provider text; non-429 provider errors fall back |
-| <a id="be-021"></a>BE-021 | Cloud meal history API (`/api/v2/me/history`) on Render Postgres, 24-month retention (Android D-024 / PROD-020) | P2 | Planned | BE-015 | Sync endpoints with idempotent upserts; daily retention job; deletion on `DELETE /api/v2/me`; Free DB for development, $6 plan before launch, same region as the service |
+| <a id="be-021"></a>BE-021 | Cloud meal history API (`/api/v2/me/history`) on Render Postgres, 24-month retention (Android D-024 / PROD-020) | P2 | In Progress: built on `branch-02/user-history` (2026-10-16), tests pass on embedded PostgreSQL; staging run with `DATABASE_URL` outstanding | BE-015 | Sync endpoints with idempotent upserts; daily retention job; deletion on `DELETE /api/v2/me`; Free DB for development, $6 plan before launch, same region as the service |
+| <a id="be-022"></a>BE-022 | Profile and FCM token API (`/api/v2/me/profile`, `/device`) with one-time import of the legacy Firestore profile | P2 | In Progress: built and tested (2026-10-16); staging run outstanding | BE-021 | Import keeps every field; Firestore unchanged except on account deletion |
+| <a id="be-023"></a>BE-023 | Server documents on PostgreSQL (`SMARTBITE_STORES_MODE=postgres`, `JdbcDocumentStore`) | P3 | In Progress: built, passes the store contract and an end-to-end test; switching an environment is the owner's decision | BE-021 | Quota, caches, reports and deletion retries work on Postgres |
 | <a id="be-017"></a>BE-017 | Shard or batch the global `places_usage` counter if Places traffic grows ([BE-BUG-001](BUGS.md#be-bug-001)) | P3 | Not started | | No transaction contention at the target request rate |

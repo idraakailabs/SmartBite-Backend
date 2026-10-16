@@ -14,7 +14,7 @@ import java.util.Map;
 /** Per-uid burst limits for each v2 route (in memory, per instance). */
 public class V2RateLimits {
 
-    public enum Route { SUGGESTIONS, RECIPES, REPORTS, QUOTA, DELETE_ME }
+    public enum Route { SUGGESTIONS, RECIPES, REPORTS, QUOTA, DELETE_ME, HISTORY, PROFILE }
 
     private final Map<Route, RateLimiter> limiters = new EnumMap<>(Route.class);
 
@@ -27,6 +27,8 @@ public class V2RateLimits {
                 RateLimitSpec.perHour(l.reportsPerHour()), RateLimitSpec.perDay(l.reportsPerDay())), clock));
         limiters.put(Route.QUOTA, new RateLimiter(List.of(RateLimitSpec.perMinute(l.quotaPerMinute())), clock));
         limiters.put(Route.DELETE_ME, new RateLimiter(List.of(RateLimitSpec.perHour(l.deletePerHour())), clock));
+        limiters.put(Route.HISTORY, new RateLimiter(List.of(RateLimitSpec.perMinute(l.historyPerMinute())), clock));
+        limiters.put(Route.PROFILE, new RateLimiter(List.of(RateLimitSpec.perMinute(l.profilePerMinute())), clock));
     }
 
     /** @throws ApiException RATE_LIMITED with Retry-After */

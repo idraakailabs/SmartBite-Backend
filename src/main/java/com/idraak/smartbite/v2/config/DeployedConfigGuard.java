@@ -53,6 +53,7 @@ public class DeployedConfigGuard {
             missing.add("FIREBASE_SERVICE_ACCOUNT_BASE64");
         }
         if (blank(props.logging().uidHashKey())) missing.add("LOG_UID_HASH_KEY");
+        if (stores.postgres() && !props.database().configured()) missing.add("DATABASE_URL");
         if (blank(props.ai().geminiApiKey())) missing.add("GEMINI_API_KEY");
         V2Properties.Entitlement entitlement = props.entitlement();
         if ("revenuecat".equalsIgnoreCase(entitlement.provider())) {

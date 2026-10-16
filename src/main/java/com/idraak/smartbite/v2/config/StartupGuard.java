@@ -20,12 +20,15 @@ public class StartupGuard {
     @PostConstruct
     void check() {
         boolean allow = props.stores().allowInMemory();
-        if (!props.stores().firestore() && !allow) {
+        if (!props.stores().durable() && !allow) {
             throw new IllegalStateException("smartbite.v2.stores.mode=" + props.stores().mode()
                     + " is only allowed with smartbite.v2.stores.allow-in-memory=true (tests/local).");
         }
         if (props.auth().fakeTokensEnabled() && !allow) {
             throw new IllegalStateException("Fake ID tokens are only allowed with smartbite.v2.stores.allow-in-memory=true.");
+        }
+        if (props.stores().postgres() && !props.database().configured()) {
+            throw new IllegalStateException("smartbite.v2.stores.mode=postgres needs DATABASE_URL.");
         }
         if (props.places().cacheTtl().toDays() > 30) {
             throw new IllegalStateException("PLACES_CACHE_TTL must be <= 30 days (Google Maps Service Specific Terms §14.3).");

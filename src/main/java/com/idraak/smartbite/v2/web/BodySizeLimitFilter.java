@@ -17,14 +17,21 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Rejects v2 bodies larger than the limit with 413 PAYLOAD_TOO_LARGE, whether or not Content-Length is sent. */
+/**
+ * Rejects v2 bodies larger than the limit with 413 PAYLOAD_TOO_LARGE, whether or not Content-Length is sent. The
+ * history upload ({@code /api/v2/me/history}, up to 100 entries) has its own, larger limit.
+ */
 public class BodySizeLimitFilter extends OncePerRequestFilter {
 
-    private final int maxBytes;
+    static final String HISTORY_PATH = "/api/v2/me/history";
+
+    private final int defaultMaxBytes;
+    private final int historyMaxBytes;
     private final ObjectMapper mapper;
 
-    public BodySizeLimitFilter(int maxBytes, ObjectMapper mapper) {
-        this.maxBytes = maxBytes;
+    public BodySizeLimitFilter(int defaultMaxBytes, int historyMaxBytes, ObjectMapper mapper) {
+        this.defaultMaxBytes = defaultMaxBytes;
+        this.historyMaxBytes = historyMaxBytes;
         this.mapper = mapper;
     }
 
@@ -36,6 +43,7 @@ public class BodySizeLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        int maxBytes = HISTORY_PATH.equals(request.getRequestURI()) ? historyMaxBytes : defaultMaxBytes;
         long declared = request.getContentLengthLong();
         if (declared > maxBytes) {
             Problems.write(response, mapper, new ApiException(ErrorCode.PAYLOAD_TOO_LARGE));

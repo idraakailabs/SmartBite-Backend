@@ -3,7 +3,7 @@ package com.idraak.smartbite.v2.config;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
@@ -17,7 +17,11 @@ import java.util.Base64;
  * disk). Without it, Application Default Credentials are used (useful locally with gcloud; not on Render).
  */
 @Configuration
-@ConditionalOnProperty(prefix = "smartbite.v2.stores", name = "mode", havingValue = "firestore")
+// Needed in both durable modes: ID-token verification, Remote Config and the legacy Firestore profile import
+// use Firebase even when the documents live in Postgres. Not with fake test tokens (tests and local runs only).
+@ConditionalOnExpression("('${smartbite.v2.stores.mode:firestore}'.equalsIgnoreCase('firestore') "
+        + "or '${smartbite.v2.stores.mode:firestore}'.equalsIgnoreCase('postgres')) "
+        + "and !${smartbite.v2.auth.fake-tokens-enabled:false}")
 public class FirebaseConfig {
 
     static final String APP_NAME = "smartbite-backend";

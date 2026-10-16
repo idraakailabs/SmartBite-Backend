@@ -52,6 +52,8 @@ smartbite:
       operation-timeout: 3s
     limits:
       max-body-bytes: 32768
+      # PUT /api/v2/me/history carries up to 100 entries (D-024).
+      max-history-body-bytes: 262144
       suggestions-per-minute: 6
       suggestions-per-hour: 40
       recipes-per-minute: 6
@@ -60,6 +62,8 @@ smartbite:
       reports-per-day: 30
       quota-per-minute: 30
       delete-per-hour: 3
+      history-per-minute: 30
+      profile-per-minute: 30
     logging:
       uid-hash-key: ${LOG_UID_HASH_KEY:}
     quota:
@@ -117,6 +121,23 @@ smartbite:
       retry-window: 24h
       # Deletes the RevenueCat customer on DELETE /api/v2/me. Off on staging (shared RevenueCat project).
       billing-deletion-enabled: ${BILLING_DELETION_ENABLED:true}
+    # Our own PostgreSQL (D-024). DATABASE_URL accepts Render's connection string as-is. Unset = no database:
+    # history and profile endpoints answer 503 FEATURE_UNAVAILABLE, and stores.mode must not be postgres.
+    database:
+      url: ${DATABASE_URL:}
+      username: ${DATABASE_USERNAME:}
+      password: ${DATABASE_PASSWORD:}
+      max-pool-size: ${DATABASE_MAX_POOL_SIZE:5}
+      connect-timeout: 5s
+      statement-timeout: 5s
+    # Cloud meal history (D-024): 24-month retention; inactive accounts' history removed after 24 months.
+    history:
+      retention-months: 24
+      inactive-months: 24
+      max-batch: 100
+      page-size: 500
+      cleanup-interval: 24h
+      max-profile-bytes: 16384
 
 management:
   endpoints:

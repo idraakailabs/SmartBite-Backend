@@ -15,7 +15,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   (`PROVIDER_UNAVAILABLE`) instead of failing the request. The global caps (150 Nearby, 3,000 Text per day)
   keep the volume low.
 - **Fix (when needed):** [BE-017](ROADMAP.md#be-017). Use `FieldValue.increment` (no transaction) and read
-  the value afterwards, or shard the counter.
+  the value afterwards, or shard the counter. With `SMARTBITE_STORES_MODE=postgres` (BE-023) the counter is a
+  single upsert, so the issue doesn't apply there.
 - **Acceptance criteria:** no store timeouts at the target concurrent eat-out rate on staging.
 
 ## <a id="be-bug-003"></a>BE-BUG-003: account deletion on staging would delete real RevenueCat customers
@@ -107,6 +108,23 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   non-matching picks in the parser (as the diet filter does).
 - **Acceptance criteria:** with one cuisine chosen, all three picks have that cuisine (unit test plus a staging
   check).
+
+## <a id="be-bug-010"></a>BE-BUG-010: the deployed profiles ignored `SMARTBITE_STORES_MODE`
+
+- **Status:** Done (2026-10-16, `branch-02/user-history`)
+- **Evidence:** `application-prod.yaml` and `application-staging.yaml` hard-coded `stores.mode: firestore`, so
+  the documented variable had no effect on Render. Found by a new `DeployedConfigTest` case.
+- **Resolution:** both profiles read `${SMARTBITE_STORES_MODE:firestore}`; the default is unchanged.
+- **Verification:** `DeployedConfigTest.postgresModeNeedsADatabaseUrl`.
+
+## <a id="be-bug-011"></a>BE-BUG-011: `RevenueCatClientTest` can time out on a busy machine
+
+- **Status:** Open (P3, test only)
+- **Evidence:** 2026-10-16. One full `./mvnw verify` run, while an Android build used the same CPU, failed
+  `notPremiumForOtherEntitlementsOrUnknownCustomer` with "Error while extracting response" after about 2 s. The
+  class passed on its own and in the next full run.
+- **Likely cause:** the client's short read timeout against WireMock under heavy load.
+- **Fix:** a longer read timeout in this test's configuration.
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 

@@ -32,6 +32,9 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
 | `v2.area` | Places grounding: cells by geohash, `PlacesCache` (≤ 30 days), `PlacesBudget` (per-uid and global daily caps), verified vs popular labels, Google Maps attribution |
 | `v2.recipe` | Recipe prompt, parser, cache, and the free-user locked preview |
 | `v2.report`, `v2.account` | Reports (idempotent) and `DELETE /api/v2/me` with a retried RevenueCat deletion |
+| `v2.db` | Our PostgreSQL (D-024): `DatabaseConfig` (only with `DATABASE_URL`), `JdbcSettings` (accepts Render's connection string), Flyway migrations at startup |
+| `v2.history` | `/api/v2/me/history`: sync of meal history and favourites, 24-month retention, daily cleanup |
+| `v2.profile` | `/api/v2/me/profile` and `/device`; one-time import of the legacy Firestore profile (`LegacyProfileSource`) |
 
 ## 3. Request flow: `POST /api/v2/meal-suggestions`
 
@@ -49,8 +52,9 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
 
 ## 4. Storage
 
-All server data goes through `DocumentStore` (Firestore in deployed environments; collection prefix from
-`FIRESTORE_COLLECTION_PREFIX`). The collections are listed in [api/README.md §15](api/README.md#15-server-side-data-in-firestore).
+All server data goes through `DocumentStore`: Firestore by default, or our PostgreSQL with
+`SMARTBITE_STORES_MODE=postgres` (`JdbcDocumentStore`, table `kv_document`; §9). The collection prefix comes from
+`FIRESTORE_COLLECTION_PREFIX`. User data (profile, history, favourites) is always in PostgreSQL (§9). The collections are listed in [api/README.md §15](api/README.md#15-server-side-data-in-firestore).
 Counters and quota use store transactions. TTL'd documents (`expire_at`) are swept by `PlacesCacheCleanup` (Places caches) and a scheduled job in
 `RecipeConfig` (recipe cache). A
 known hot-spot is the global per-day `places_usage` document ([BE-BUG-001](BUGS.md#be-bug-001)).
@@ -90,9 +94,58 @@ values such as dish names don't fail it.
 | App contract | `ContractFixturesTest` (§6) | |
 | Store contract | `DocumentStoreContract`: `InMemoryDocumentStoreTest` always runs; `FirestoreDocumentStoreEmulatorTest` runs only when `FIRESTORE_EMULATOR_HOST` is set | Emulator command in the README. The test uses a plaintext gRPC channel ([BE-BUG-002](BUGS.md#be-bug-002)) |
 
-`./mvnw -B verify` on 2026-10-16: 162 tests, 0 failures, 0 errors, 11 skipped (the emulator tests). The emulator
+`./mvnw -B verify` on 2026-10-16, after D-024: 207 tests, 0 failures, 0 errors, 11 skipped (the emulator tests;
+see §9 for the PostgreSQL suites). Before D-024: 162. The emulator
 run on the same day: 11/11 passed. `DeployedConfigTest` binds the real `application*.yaml` files to check the
 deployed profiles. A local smoke test of the packaged jar is described in [ops/DEPLOYMENT.md](ops/DEPLOYMENT.md) §9.1.
+
+## 9. Our own database (D-024)
+
+**When:** only when `DATABASE_URL` is set: Render's connection string as-is
+(`postgresql://user:password@host:port/db`), or a JDBC URL with `DATABASE_USERNAME`/`DATABASE_PASSWORD`. Without
+it the service runs as before, and the user-data endpoints answer `503 FEATURE_UNAVAILABLE`.
+
+**How it's wired:**
+- Plain `spring-jdbc`, HikariCP (`DATABASE_MAX_POOL_SIZE`, default 5; `statement_timeout` 5 s per connection)
+  and Flyway.
+- Spring Boot's JDBC/Flyway auto-configuration modules aren't on the classpath, so nothing database-related
+  starts without `DATABASE_URL`.
+- `DatabaseConfig` runs the migrations at startup, before traffic. A database that can't be reached, or a
+  failed migration, fails startup, and Render keeps the previous deploy.
+
+**Schema** (`src/main/resources/db/migration`):
+
+| Migration | Tables | Notes |
+|---|---|---|
+| `V1__user_data.sql` | `user_profile` (uid, profile jsonb, fcm_token, source app or firestore_import), `meal_history` (uid+id key, fields, logged_at, client_updated_at, deleted tombstone, server_updated_at), `favorite_dish` (uid+name), `user_activity` (uid, last_seen_at) | Indexes: `(uid, server_updated_at, id)` for sync, `logged_at` for retention, `last_seen_at` for inactivity |
+| `V2__documents.sql` | `kv_document` (collection+id key, data jsonb) | Only used with `SMARTBITE_STORES_MODE=postgres` |
+
+**Rules:**
+- Migrations are append-only (never edit an applied one; add `V3__…`).
+- Every user-data query is keyed by the verified uid.
+- Upserts compare `client_updated_at`, so the latest client change wins.
+- `server_updated_at` (`clock_timestamp()`) orders the sync cursor.
+
+**Retention:** `HistoryService.cleanup()` runs 5 minutes after startup and then every 24 h. It deletes entries
+logged over 24 months ago and the history of accounts whose `user_activity.last_seen_at` is over 24 months old.
+Profiles are not removed for inactivity.
+
+**Firestore migration:**
+- **Profiles:** copied on demand, at each user's first profile read. Firestore stays the read-only source until
+  then, and isn't deleted (except on account deletion).
+- **History:** never in Firestore. It is uploaded by each phone on its first sync.
+- **The server's own documents** (quota, caches, reports): move by switching `SMARTBITE_STORES_MODE` to
+  `postgres`. In production, v2 has never written to Firestore, so nothing needs copying. Staging data
+  (`stg_`) is disposable.
+
+**Postgres document store:** `JdbcDocumentStore` passes the same `DocumentStoreContract` as Firestore and the
+in-memory store. Instants are stored as `{"$ts": …}`, transactions take a per-document advisory lock, and
+`increment` is a single upsert. That removes the transaction hot-spot of BE-BUG-001.
+
+**Tests** use a real PostgreSQL (zonky embedded-postgres 14.x; no Docker): `TestDatabase`. The suites are
+`JdbcDocumentStorePostgresTest`, `HistoryEndpointTest`, `ProfileEndpointTest`, `PostgresModeEndpointTest`,
+`HistoryWithoutDatabaseTest`, `JdbcSettingsTest` and `UserDataContractFixturesTest`. Render runs PostgreSQL 18;
+the SQL uses only features available in both.
 
 ## 8. Build and deploy
 

@@ -1,0 +1,30 @@
+{
+  "entries" : [ {
+    "id" : "6f0c1d2e-0000-4000-8000-000000000001",
+    "name" : "Chicken Karahi",
+    "entry_type" : "cooked",
+    "meal_type" : "Dinner",
+    "reaction" : "loved",
+    "servings" : 4,
+    "note" : "less salt",
+    "tags" : [ ],
+    "logged_at" : "2026-10-10T19:00:00Z",
+    "updated_at" : "2026-10-11T19:00:00Z",
+    "deleted" : false
+  }, {
+    "id" : "6f0c1d2e-0000-4000-8000-000000000002",
+    "name" : "Seekh Kebab",
+    "entry_type" : "ate_out",
+    "meal_type" : "Lunch",
+    "reaction" : "okay",
+    "area" : "Johar Town",
+    "tags" : [ ],
+    "logged_at" : "2026-10-09T19:00:00Z",
+    "updated_at" : "2026-10-11T19:00:00Z",
+    "deleted" : false
+  } ],
+  "favorites" : [ "Chicken Karahi" ],
+  "next_cursor" : "djE6MTc5MjE2ODkzMTc1NTU4OTo2ZjBjMWQyZS0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDI",
+  "has_more" : false,
+  "retention_months" : 24
+}

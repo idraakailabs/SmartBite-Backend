@@ -90,7 +90,8 @@ public class V2WebConfig implements WebMvcConfigurer {
     @Bean
     public FilterRegistrationBean<BodySizeLimitFilter> bodySizeLimitFilter(V2Properties props, ObjectMapper mapper) {
         FilterRegistrationBean<BodySizeLimitFilter> r =
-                new FilterRegistrationBean<>(new BodySizeLimitFilter(props.limits().maxBodyBytes(), mapper));
+                new FilterRegistrationBean<>(new BodySizeLimitFilter(props.limits().maxBodyBytes(),
+                        props.limits().maxHistoryBodyBytes(), mapper));
         r.addUrlPatterns("/api/v2/*");
         r.setOrder(Ordered.HIGHEST_PRECEDENCE + 3);
         return r;

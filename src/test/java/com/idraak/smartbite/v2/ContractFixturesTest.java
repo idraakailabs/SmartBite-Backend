@@ -125,6 +125,11 @@ class ContractFixturesTest {
     }
 
     void check(String name, String body) throws IOException {
+        checkRecorded(name, body);
+    }
+
+    /** Records {@code name} when missing (or with -Dcontract.write=true), otherwise compares the JSON shape. */
+    static void checkRecorded(String name, String body) throws IOException {
         Path file = SERVER.resolve(name + ".json");
         JsonNode live = JSON.readTree(body);
         if (!Files.exists(file) || Boolean.getBoolean("contract.write")) {

@@ -49,6 +49,10 @@ tags:
     description: In-app reports of AI suggestions and recipes (Play AI-generated content policy).
   - name: Account
     description: Quota read-out and server-side data deletion for the signed-in user.
+  - name: UserData
+    description: |
+      The signed-in user's profile, FCM token, meal history and favourites in SmartBite's own database (D-024).
+      These endpoints answer 503 FEATURE_UNAVAILABLE when the server has no database configured.
   - name: Operations
     description: Platform health check.
 paths:
@@ -448,6 +452,177 @@ paths:
                   status:
                     type: string
                     enum: [DOWN, OUT_OF_SERVICE]
+
+  /api/v2/me/profile:
+    get:
+      tags: [UserData]
+      operationId: getMyProfile
+      summary: The user's profile; the first read imports their legacy Firestore profile
+      description: |
+        Returns the app's own profile object (camelCase keys, as the app stores it locally), unchanged. When the
+        server has no profile for the user, it reads their legacy Firestore document `users/{uid}` once, stores
+        it (renaming Firestore's `onboardingComplete` to `isOnboardingComplete` and moving `fcmToken` to the
+        device record) and returns it. Firestore is never changed by this. `404` when there is no profile
+        anywhere; `503 PROVIDER_UNAVAILABLE` when Firestore can't be read (the app treats this as offline).
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+      responses:
+        '200':
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: No profile in our database or in Firestore.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+    put:
+      tags: [UserData]
+      operationId: putMyProfile
+      summary: Save the user's profile (top-level keys are merged)
+      description: |
+        Top-level keys replace the stored ones; keys the server doesn't know are kept, so newer app versions can
+        add fields. At most 16 KiB. A `fcmToken` key is ignored (use `/api/v2/me/device`).
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+      responses:
+        '200':
+          description: The stored profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /api/v2/me/device:
+    put:
+      tags: [UserData]
+      operationId: putMyDevice
+      summary: Store this device's FCM token (previously written to Firestore by the app)
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRequest'
+      responses:
+        '204':
+          description: Stored.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+
+  /api/v2/me/history:
+    get:
+      tags: [UserData]
+      operationId: getMyHistoryChanges
+      summary: Meal-history changes since a cursor, and the current favourites
+      description: |
+        Entries changed after `cursor` (all entries when absent), oldest change first, deletions included as
+        tombstones (`deleted: true`). Rows changed in the last two seconds are left for the next call, so a
+        cursor never skips a write that is still committing. Follow `next_cursor` while `has_more`; keep the
+        last `next_cursor` for the next sync. `favorites` is always the full current set.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 500
+      responses:
+        '200':
+          description: One page of changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
+    put:
+      tags: [UserData]
+      operationId: pushMyHistory
+      summary: Upload new, edited and deleted entries and favourite changes
+      description: |
+        Up to 100 entries and 100 favourite changes per request (body up to 256 KiB). Per entry id (and per
+        favourite name) the latest client `updated_at` wins, so a stale write from another device is skipped.
+        Entries logged more than 24 months ago are not stored. Fields are tidied (clipped, control characters
+        removed, unknown `entry_type` stored as `logged`, unknown `reaction` dropped); entries with an unusable
+        id, name or timestamp are listed in `rejected_ids` without failing the rest.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/AppVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryPushRequest'
+      responses:
+        '200':
+          description: Applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryPushResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ProviderUnavailable'
 
 components:
   securitySchemes:
@@ -1626,6 +1801,143 @@ components:
         created_at:
           $ref: '#/components/schemas/Instant'
 
+    # ---------- user data (D-024) ----------
+    ProfileResponse:
+      type: object
+      required: [profile, updated_at]
+      properties:
+        profile:
+          type: object
+          additionalProperties: true
+          description: The app's own profile object (camelCase keys), stored and returned unchanged.
+        updated_at:
+          $ref: '#/components/schemas/Instant'
+    ProfileRequest:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          type: object
+          additionalProperties: true
+    DeviceRequest:
+      type: object
+      required: [fcm_token]
+      properties:
+        fcm_token:
+          type: string
+          maxLength: 4096
+          pattern: '^\S+$'
+    HistoryEntry:
+      type: object
+      required: [id, name, logged_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,64}$'
+        name:
+          type: string
+          maxLength: 120
+        entry_type:
+          type: string
+          enum: [cooked, ate_out, logged]
+        meal_type:
+          type: string
+          maxLength: 40
+        reaction:
+          type: string
+          enum: [loved, okay, not_for_me]
+        calories:
+          type: integer
+          minimum: 0
+          maximum: 20000
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 50
+        area:
+          type: string
+          maxLength: 120
+        note:
+          type: string
+          maxLength: 500
+        image_url:
+          type: string
+          maxLength: 500
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 40
+        logged_at:
+          $ref: '#/components/schemas/Instant'
+        updated_at:
+          $ref: '#/components/schemas/Instant'
+        deleted:
+          type: boolean
+          default: false
+    FavoriteChange:
+      type: object
+      required: [name, favorite, updated_at]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        favorite:
+          type: boolean
+        updated_at:
+          $ref: '#/components/schemas/Instant'
+    HistoryPushRequest:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+        favorites:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/FavoriteChange'
+    HistoryPushResponse:
+      type: object
+      properties:
+        entries_applied:
+          type: integer
+        entries_skipped:
+          type: integer
+          description: Older than the stored version, or logged more than 24 months ago.
+        rejected_ids:
+          type: array
+          items:
+            type: string
+        favorites_applied:
+          type: integer
+        rejected_favorites:
+          type: array
+          items:
+            type: string
+    HistoryPage:
+      type: object
+      required: [entries, favorites, has_more, retention_months]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+        favorites:
+          type: array
+          items:
+            type: string
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+        retention_months:
+          type: integer
+
     # ---------- account deletion ----------
     AccountDeletionResponse:
       type: object
@@ -1648,6 +1960,10 @@ components:
             reports:
               type: string
               enum: [anonymized, none]
+            user_data:
+              type: string
+              description: History, favourites, profile and the legacy Firestore profile (D-024).
+              enum: [deleted, none, not_configured]
         reports_anonymized:
           type: integer
           minimum: 0
@@ -1671,6 +1987,7 @@ components:
         - INTERNAL_ERROR
         - GENERATION_FAILED
         - PROVIDER_UNAVAILABLE
+        - FEATURE_UNAVAILABLE
       description: |
         Stable machine codes. New codes may be added; clients treat an unknown code by its HTTP status.
         `RECIPE_LOCKED` is intentionally not an error: a locked recipe is a `200` with `locked: true`.

@@ -7,6 +7,8 @@ import com.idraak.smartbite.v2.entitlement.EntitlementUnavailableException;
 import com.idraak.smartbite.v2.error.ApiException;
 import com.idraak.smartbite.v2.quota.QuotaService;
 import com.idraak.smartbite.v2.report.ReportController;
+import com.idraak.smartbite.v2.history.HistoryService;
+import com.idraak.smartbite.v2.profile.ProfileService;
 import com.idraak.smartbite.v2.store.DocumentStore;
 import com.idraak.smartbite.v2.store.StoreUnavailableException;
 import com.idraak.smartbite.v2.suggestion.SuggestionService;
@@ -27,14 +29,16 @@ import java.util.Map;
  * caller's reports (rows kept for moderation, D-021 item 7), evicts in-memory state and deletes the RevenueCat
  * customer. A RevenueCat failure leaves a {@code deletion_requests/{uid}} record that a scheduled job retries for
  * {@code retryWindow}; after that it is marked {@code abandoned} and logged as an error for manual action.
- * The Firebase Auth user and {@code users/{uid}} stay the app's job.
+ * It also deletes the user's history, favourites and profile from our database, and their legacy Firestore profile
+ * ({@code users/{uid}}), D-024. The Firebase Auth user stays the app's job.
  */
 public class AccountDeletionService {
 
     private static final Logger log = LoggerFactory.getLogger(AccountDeletionService.class);
     static final String REQUESTS = "deletion_requests";
 
-    public record Steps(String revenuecatCustomer, String quotaCounter, String reports) {}
+    /** {@code userData}: history, favourites and profile (D-024): deleted, none or not_configured. */
+    public record Steps(String revenuecatCustomer, String quotaCounter, String reports, String userData) {}
 
     public record AccountDeletionResponse(String status, Steps steps, int reportsAnonymized) {}
 
@@ -47,10 +51,13 @@ public class AccountDeletionService {
     private final UidHasher hasher;
     private final V2Properties.Deletion cfg;
     private final Clock clock;
+    private final HistoryService history;
+    private final ProfileService profiles;
 
     public AccountDeletionService(DocumentStore store, QuotaService quota, BillingCustomerDeleter billing,
                                   EntitlementService entitlements, V2RateLimits limits, SuggestionService suggestions,
-                                  UidHasher hasher, V2Properties.Deletion cfg, Clock clock) {
+                                  UidHasher hasher, V2Properties.Deletion cfg, Clock clock, HistoryService history,
+                                  ProfileService profiles) {
         this.store = store;
         this.quota = quota;
         this.billing = billing;
@@ -60,6 +67,8 @@ public class AccountDeletionService {
         this.hasher = hasher;
         this.cfg = cfg;
         this.clock = clock;
+        this.history = history;
+        this.profiles = profiles;
     }
 
     public AccountDeletionResponse delete(String uid) {
@@ -77,8 +86,9 @@ public class AccountDeletionService {
             limits.evict(uid);
             suggestions.evict(uid);
 
+            String userData = deleteUserData(uid);
             String rc = deleteBillingCustomer(uid);
-            Steps steps = new Steps(rc, quotaOutcome, anonymized > 0 ? "anonymized" : "none");
+            Steps steps = new Steps(rc, quotaOutcome, anonymized > 0 ? "anonymized" : "none", userData);
             if ("retry_scheduled".equals(rc)) {
                 markAttempt(uid, "revenuecat_unavailable");
                 log.warn("account deletion pending retry uid_hash={}", hasher.hash(uid));
@@ -118,6 +128,14 @@ public class AccountDeletionService {
             log.warn("deletion retry run failed ({}); next run will retry", e.getClass().getSimpleName());
         }
         return done;
+    }
+
+    /** History, favourites and profile in our database, and the legacy Firestore profile. */
+    private String deleteUserData(String uid) {
+        int historyRows = history.deleteUser(uid);
+        String profile = profiles.deleteUser(uid);
+        if (historyRows < 0 && "not_configured".equals(profile)) return "not_configured";
+        return historyRows > 0 || "deleted".equals(profile) ? "deleted" : "none";
     }
 
     private String deleteBillingCustomer(String uid) {

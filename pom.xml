@@ -30,6 +30,7 @@
 		<java.version>21</java.version>
 		<wiremock.version>3.13.2</wiremock.version>
 		<firebase-admin.version>9.11.0</firebase-admin.version>
+		<embedded-postgres.version>2.1.0</embedded-postgres.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -59,6 +60,30 @@
 			<version>${firebase-admin.version}</version>
 		</dependency>
 
+		<!-- Our own Postgres (Render) for user history, profiles and, optionally, the server's documents (D-024).
+		     Plain JDBC, the pool and Flyway, wired by v2.db.DatabaseConfig only when DATABASE_URL is set; Spring Boot's
+		     JDBC auto-configuration modules are deliberately not on the classpath. Versions come from Spring Boot. -->
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-jdbc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.zaxxer</groupId>
+			<artifactId>HikariCP</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -68,6 +93,14 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- A real PostgreSQL for tests, without Docker (the development machine has none). -->
+		<dependency>
+			<groupId>io.zonky.test</groupId>
+			<artifactId>embedded-postgres</artifactId>
+			<version>${embedded-postgres.version}</version>
 			<scope>test</scope>
 		</dependency>
 

@@ -100,6 +100,15 @@ class DeployedConfigTest {
     }
 
     @Test
+    void postgresModeNeedsADatabaseUrl() throws IOException {
+        Map<String, Object> vars = allSecrets();
+        vars.put("SMARTBITE_STORES_MODE", "postgres");
+        assertThat(guard(vars, "prod").missingSettings()).containsExactly("DATABASE_URL");
+        vars.put("DATABASE_URL", "postgresql://u:p@db/smartbite");
+        assertThat(guard(vars, "prod").missingSettings()).isEmpty();
+    }
+
+    @Test
     void onRenderAProfileIsRequired() throws IOException {
         Map<String, Object> vars = allSecrets();
         vars.put("RENDER", "true");

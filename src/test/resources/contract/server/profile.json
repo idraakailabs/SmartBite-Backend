@@ -1,0 +1,22 @@
+{
+  "profile" : {
+    "city" : "Lahore",
+    "goal" : "",
+    "name" : "Ali",
+    "gender" : "",
+    "country" : "Pakistan",
+    "likedDishes" : [ "Chicken Karahi" ],
+    "topCuisines" : [ "Pakistani" ],
+    "activityLevel" : "",
+    "dislikedFoods" : [ ],
+    "dietPreference" : "non_vegetarian",
+    "numberOfPeople" : 4,
+    "spiceTolerance" : "spicy",
+    "favoriteProteins" : [ "Chicken" ],
+    "cookingSkillLevel" : "beginner",
+    "budgetRangePerMeal" : "",
+    "isOnboardingComplete" : true,
+    "cookingTimePreference" : "30–60 min"
+  },
+  "updated_at" : "2026-10-16T16:42:13.998853Z"
+}
