@@ -256,6 +256,21 @@ seconds for the AI.
 Firestore.
 
 ### 9.2 Staging round (owner deploys; the checks can be run by anyone with the URL)
+
+**Round 1: 2026-10-16, `https://smartbite-api-staging.onrender.com`, commit `a8e8e7d`, Singapore, 1c-2g.**
+Created by the owner from the Blueprint, and Live. Checks run from the development machine:
+
+| Check | Result |
+|---|---|
+| `GET /`, `/actuator/health`, `/actuator/health/liveness` | 200; `UP` (about 0.2–0.5 s) |
+| `/actuator/env` | 404 (not exposed) |
+| v2 quota without a token, and with a fake `test:` token | 401 `UNAUTHENTICATED` (fake tokens are off on staging, as intended) |
+| v1 `{}` | 400 with field errors |
+| Rate limit, 70 parallel requests in 5 s from one machine | 63 × 400 then 7 × 429: one consistent client identity (token bucket: 60 plus refill of 1/s). Sequential requests at about 2/s never hit the limit, which is expected |
+| Spoofed `X-Forwarded-For: 1.2.3.4` right after the burst | 429: the header doesn't bypass the limit |
+| One real v1 request (`golden/v1/request.json`) | 200 in 3.1 s, 3 suggestions: the AI keys work (Groq first) |
+| **Outstanding** | A request from a second network during an exhausted window (step 5b); the startup log check (step 3); memory (step 8); the app on staging (step 6) |
+
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.
    - **Expect:** the build succeeds (the first real Docker build) and the deploy turns "Live".
 2. **Health:** `curl -s https://<staging>/actuator/health` → `{"groups":["liveness","readiness"],"status":"UP"}`.

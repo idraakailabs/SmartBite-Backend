@@ -58,6 +58,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   shares one IP, so the v1 limit (60/min) and the pre-auth v2 limit apply to all users together.
 - **Fix:** none needed if the assumption holds; otherwise adjust `TRUSTED_PROXIES`.
 - **Acceptance criteria:** DEPLOYMENT.md §9.2 step 5 passes on staging.
+- **Progress (2026-10-16, staging):** one machine is counted as one client, and a spoofed header doesn't bypass
+  the limit. Still to check: a second network is counted separately (step 5b).
 
 ## <a id="be-bug-007"></a>BE-BUG-007: v1 errors include provider text, and v1 falls back only on HTTP 429
 
@@ -67,7 +69,11 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   provider error reaches the client, and v1 didn't try Gemini because it falls back only on 429.
 - **Impact:** an invalid or revoked Groq key takes v1 down even when Gemini works; provider details leak (no
   secrets).
-- **Mitigation now:** DEPLOYMENT.md §9.2 step 7 checks the Groq key with a real v1 request.
+- **Mitigation now:** DEPLOYMENT.md §9.2 step 7 checks the Groq key with a real v1 request. Passed on staging on
+  2026-10-16 (200, 3 suggestions).
+- **Also seen on staging (2026-10-16):** a malformed v1 body, such as a bare number instead of an object, returns
+  `500 {"error":"Internal server error","message":"JSON parse error: …"}` instead of 400. The parser message
+  also reaches the client. Same fix scope (BE-020).
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
