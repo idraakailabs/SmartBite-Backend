@@ -90,13 +90,20 @@ values such as dish names don't fail it.
 | App contract | `ContractFixturesTest` (§6) | |
 | Store contract | `DocumentStoreContract`: `InMemoryDocumentStoreTest` always runs; `FirestoreDocumentStoreEmulatorTest` runs only when `FIRESTORE_EMULATOR_HOST` is set | Emulator command in the README. The test uses a plaintext gRPC channel ([BE-BUG-002](BUGS.md#be-bug-002)) |
 
-`./mvnw -B verify` on 2026-10-12: 154 tests, 0 failures, 0 errors, 11 skipped (the emulator tests). The emulator
-run on the same day: 11/11 passed.
+`./mvnw -B verify` on 2026-10-16: 162 tests, 0 failures, 0 errors, 11 skipped (the emulator tests). The emulator
+run on the same day: 11/11 passed. `DeployedConfigTest` binds the real `application*.yaml` files to check the
+deployed profiles. A local smoke test of the packaged jar is described in [ops/DEPLOYMENT.md](ops/DEPLOYMENT.md) §9.1.
 
 ## 8. Build and deploy
 
+The deployment guide, costs, environment strategy and checklist are in [ops/DEPLOYMENT.md](ops/DEPLOYMENT.md).
+Startup safety: `StartupGuard` (no in-memory stores or fake tokens outside tests) and `DeployedConfigGuard`
+(a deployed profile is required on Render, and every required secret must be set).
+Shutdown is graceful (`server.shutdown: graceful`, 45 s per phase).
+
 - `./mvnw -B verify` builds `target/smartbite-0.0.1-SNAPSHOT.jar`.
-- `Dockerfile`: Maven build stage, then a JRE 21 runtime with `-Xmx400m`. It hasn't been built locally yet:
-  Docker needs WSL2, which is off on the development machine ([BE-014](ROADMAP.md#be-014)).
+- `Dockerfile`: a Maven build stage (dependencies in their own layer), then a JRE 21 runtime as a non-root user
+  with `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`. It hasn't been built locally: Docker needs WSL2,
+  which is off on the development machine ([BE-014](ROADMAP.md#be-014)).
 - Deploy plan, rollback and the owner's inputs: [ops/ENVIRONMENT.md §3–4](ops/ENVIRONMENT.md). Nothing has
   been deployed from `branch-01/v2-api`.

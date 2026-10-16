@@ -24,6 +24,11 @@ A deployed run needs the variables in [docs/ops/ENVIRONMENT.md](docs/ops/ENVIRON
 in-memory stores and fake tokens unless `smartbite.v2.stores.allow-in-memory=true`; only the `test` profile
 sets that.
 
+## Deploying
+
+Render guide, costs, environments and checklist: [docs/ops/DEPLOYMENT.md](docs/ops/DEPLOYMENT.md). A
+Blueprint for a short-lived staging service is in [deploy/render-staging.yaml](deploy/render-staging.yaml).
+
 ## Documentation
 
 Start with [CLAUDE.md](CLAUDE.md), then [docs/ROADMAP.md](docs/ROADMAP.md),

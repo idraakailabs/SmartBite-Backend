@@ -3,14 +3,14 @@
 Task IDs are stable (`BE-xxx`); never renumber them. Product decisions (`D-0xx`) and the app's own roadmap live
 in the Android repository's `docs/`.
 
-## Current position (2026-10-12)
+## Current position (2026-10-16)
 
 | | |
 |---|---|
 | Branch | `branch-01/v2-api` (not merged to `master`; not pushed or deployed) |
-| Phase | v2 API implemented and tested locally; waiting for the owner's secrets and the staging deploy |
-| Next task | [BE-010](#be-010) staging deploy on Render (needs the owner's approval and secrets) |
-| Last verified | `./mvnw -B verify`: 154 tests, 0 failures, 11 skipped (the emulator tests, which run separately: 11/11 pass) |
+| Phase | Deployment prepared ([BE-018](#be-018)); the owner deploys (Render Pro workspace bought 2026-10-16) |
+| Next task | [BE-010](#be-010) staging round on Render, following [DEPLOYMENT.md](ops/DEPLOYMENT.md) §9.2 (owner) |
+| Last verified | 2026-10-16: `./mvnw -B verify` 162 tests, 0 failures, 11 skipped (emulator tests, run separately: 11/11 pass); local jar smoke test (DEPLOYMENT.md §9.1) |
 
 ## Phase 2: v2 API (Revision 2)
 
@@ -26,10 +26,13 @@ in the Android repository's `docs/`.
 | <a id="be-008"></a>BE-008 | Recipes, reports, `DELETE /api/v2/me` | P0 | Done (`6b25c42`, `3da6960`, `9736b1f`) | BE-005 | Premium step gate; idempotent reports; deletion retry; tests |
 | <a id="be-009"></a>BE-009 | Contract fixtures shared with the Android app, and Places attribution in the response | P0 | Done (`a818861`) | BE-006..008 | App-generated requests accepted by the real endpoints; recorded responses parse in the app (Android `V2ContractTest`) |
 | <a id="be-011"></a>BE-011 | `DocumentStore` contract tests, in memory and on the Firestore emulator | P1 | Done (`7ac27d7`) | | 11 behaviours pass on both stores (emulator run 2026-10-12) |
-| <a id="be-010"></a>BE-010 | Staging deploy on Render ([ENVIRONMENT.md §4](ops/ENVIRONMENT.md)) | P0 | Blocked: needs the owner's approval, Render access and secrets | BE-009 | Health 200; v2 401 without a token; quota with a debug ID token; v1 unchanged |
+| <a id="be-010"></a>BE-010 | Staging round on Render ([DEPLOYMENT.md §9.2](ops/DEPLOYMENT.md)) | P0 | Ready for the owner: Blueprint `deploy/render-staging.yaml`; needs secrets | BE-018 | Health 200; v2 401 without a token; quota with a debug ID token; v1 unchanged |
 | <a id="be-012"></a>BE-012 | Real-provider smoke test on staging: Groq, Gemini, Places, RevenueCat, Remote Config template | P0 | Not started | BE-010 | Each provider called once successfully; logs clean |
 | <a id="be-013"></a>BE-013 | End-to-end run with the Android debug build against staging (`SMARTBITE_STAGING_API_URL`) | P0 | Not started | BE-010 | Picks, recipe, report, quota and deletion work from the app |
-| <a id="be-014"></a>BE-014 | Docker image build verified | P1 | Blocked: Docker unavailable on the dev machine (WSL2 off); Render's build is the fallback | | `docker build` succeeds |
-| <a id="be-015"></a>BE-015 | Production deploy and merge to `master` | P0 | Not started | BE-012, BE-013 | Owner approval; auto-deploy off; rollback plan |
+| <a id="be-014"></a>BE-014 | Docker image build verified | P1 | Blocked locally (WSL2 off). The staging round's Render build is the first real build; `dependency:go-offline` verified locally | | `docker build` succeeds |
+| <a id="be-015"></a>BE-015 | Production deploy and merge to `master` | P0 | Not started; plan in [DEPLOYMENT.md §10](ops/DEPLOYMENT.md) (in-place upgrade of the existing service) | BE-010, BE-012, BE-013 | Owner approval; auto-deploy off; rollback plan |
 | <a id="be-016"></a>BE-016 | Firebase App Check (ADR-0003) | P2 | Not started | BE-015 | Enforced after the app sends tokens |
+| <a id="be-018"></a>BE-018 | Deployment preparation for Render: config guard, staging safety, Docker sizing, graceful shutdown, guide | P0 | Done (2026-10-16) | | Misconfigured deploys refuse to start; staging can't delete RevenueCat customers; tests and smoke test pass; guide and checklist written |
+| <a id="be-019"></a>BE-019 | Verify the client IP behind Render's proxy ([BE-BUG-006](BUGS.md#be-bug-006)) | P0 | Not started (on staging) | BE-010 | DEPLOYMENT.md §9.2 step 5 passes |
+| <a id="be-020"></a>BE-020 | v1 error body and fallback ([BE-BUG-007](BUGS.md#be-bug-007)) | P2 | Proposed (v1 is frozen; needs owner approval) | | v1 errors no longer include provider text; non-429 provider errors fall back |
 | <a id="be-017"></a>BE-017 | Shard or batch the global `places_usage` counter if Places traffic grows ([BE-BUG-001](BUGS.md#be-bug-001)) | P3 | Not started | | No transaction contention at the target request rate |

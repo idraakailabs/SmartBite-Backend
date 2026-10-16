@@ -8,3 +8,6 @@ smartbite:
     stores:
       mode: firestore
       collection-prefix: ${FIRESTORE_COLLECTION_PREFIX:stg_}
+    # Staging shares the RevenueCat project with production: never delete a real customer from here.
+    deletion:
+      billing-deletion-enabled: ${BILLING_DELETION_ENABLED:false}

@@ -1,10 +1,15 @@
 server:
   port: ${PORT:8080}
+  # Finish in-flight requests on SIGTERM. Set Render's shutdown delay to 60 s (docs/ops/DEPLOYMENT.md).
+  shutdown: graceful
   # Bodies are capped at 32 KiB by the v2 body-size filter; Tomcat's own cap on headers stays default.
 
 spring:
   application:
     name: smartbite
+  lifecycle:
+    # Longer than the 40 s recipe deadline, shorter than the 60 s Render shutdown delay we recommend.
+    timeout-per-shutdown-phase: 45s
   # No hard-coded active profile: set SPRING_PROFILES_ACTIVE (staging | prod) on each environment.
   jackson:
     property-naming-strategy: SNAKE_CASE
@@ -110,6 +115,8 @@ smartbite:
     deletion:
       retry-interval: 15m
       retry-window: 24h
+      # Deletes the RevenueCat customer on DELETE /api/v2/me. Off on staging (shared RevenueCat project).
+      billing-deletion-enabled: ${BILLING_DELETION_ENABLED:true}
 
 management:
   endpoints:

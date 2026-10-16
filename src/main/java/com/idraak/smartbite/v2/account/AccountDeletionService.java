@@ -121,6 +121,10 @@ public class AccountDeletionService {
     }
 
     private String deleteBillingCustomer(String uid) {
+        if (!cfg.billingDeletionEnabled()) {
+            log.info("account deletion: RevenueCat customer deletion is disabled here (staging) uid_hash={}", hasher.hash(uid));
+            return "skipped";
+        }
         try {
             return billing.deleteCustomer(uid) == BillingCustomerDeleter.Outcome.DELETION_QUEUED ? "deletion_queued" : "not_found";
         } catch (EntitlementUnavailableException e) {

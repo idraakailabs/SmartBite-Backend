@@ -39,6 +39,9 @@
 Firestore emulator store tests, which passed 11/11 in a separate run against the emulator (Firebase CLI 15.33.0).
 The Android app and this service now share golden request and response fixtures (`docs/TECHNICAL.md` §6).
 
+**Update (2026-10-16):** deployment prepared ([../ops/DEPLOYMENT.md](../ops/DEPLOYMENT.md)). `DELETE /api/v2/me`
+can report `revenuecat_customer: skipped` on staging, where customer deletion is disabled (additive). 162 tests pass.
+
 **Pending (not verified):**
 - the Docker image build (Docker needs WSL2, which is off on the development machine; Render or CI will build it)
 - real calls to Groq, Gemini, Google Places and RevenueCat

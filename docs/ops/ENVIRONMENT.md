@@ -1,5 +1,7 @@
 # Environments and configuration (v2)
 
+> **Deployment guide and checklist: [DEPLOYMENT.md](DEPLOYMENT.md)** (2026-10-16). It supersedes §4–§5 below where they differ.
+>
 > **Status: plan, 2026-10-11. Nothing here has been executed.** No Render service, setting or secret has been
 > created or changed. Every step marked "owner" needs the owner's explicit approval at the time it runs.
 
@@ -65,7 +67,9 @@ the "staging" and "production" columns are defaults or examples, not secrets.
 | `V1_RATE_LIMIT_PER_HOUR` | no | no | `600` | `600` | `600` | Per-IP limit on v1 |
 | `TRUSTED_PROXIES` | no | no | `1` | `1` | `1` | Proxy hops to trust in `X-Forwarded-For` when resolving the client IP (Render adds one) |
 | `LOG_UID_HASH_KEY` | **yes** | **yes** | empty | random 32 bytes (base64) | a different random value | HMAC key for logging uids as hashes |
-| `JAVA_TOOL_OPTIONS` | no | no | — | e.g. `-XX:MaxRAMPercentage=75` | same | JVM sizing once the instance size is known |
+| `JAVA_TOOL_OPTIONS` | no | no | — | *(unset)* | *(unset)* | Extra JVM flags. The image already sets `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError` (2026-10-16) |
+| `BILLING_DELETION_ENABLED` | no | no | `true`; `false` in the `staging` profile | `false` | *(unset)* | Delete the RevenueCat customer on `DELETE /api/v2/me`. Off on staging because the RevenueCat project is shared (BE-BUG-003) |
+| `RENDER` | — | no | set by Render | `true` | `true` | Not set by us. With it present, the app refuses to start without `SPRING_PROFILES_ACTIVE=prod|staging` (`DeployedConfigGuard`) |
 
 Not read by the code yet (reserved): `APP_CHECK_ENFORCE`, for the App Check follow-up (ADR-0003).
 

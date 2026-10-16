@@ -68,5 +68,9 @@ public record V2Properties(
 
     public record Recipes(boolean stepsPremium, int freePreviewSteps, Duration cacheTtl) {}
 
-    public record Deletion(Duration retryInterval, Duration retryWindow) {}
+    /**
+     * {@code billingDeletionEnabled} is false on staging: it shares the RevenueCat project with production, so
+     * testing account deletion there must not delete a real customer.
+     */
+    public record Deletion(Duration retryInterval, Duration retryWindow, boolean billingDeletionEnabled) {}
 }

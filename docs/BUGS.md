@@ -18,6 +18,57 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   the value afterwards, or shard the counter.
 - **Acceptance criteria:** no store timeouts at the target concurrent eat-out rate on staging.
 
+## <a id="be-bug-003"></a>BE-BUG-003: account deletion on staging would delete real RevenueCat customers
+
+- **Status:** Done
+- **Evidence:** staging shares the RevenueCat project with production. `DELETE /api/v2/me` always called the
+  RevenueCat customer deletion, so testing account deletion on staging with a real account would delete that
+  customer.
+- **Resolution:** 2026-10-16. `smartbite.v2.deletion.billing-deletion-enabled` (`BILLING_DELETION_ENABLED`,
+  default `true`) is `false` in the `staging` profile; the step then reports `revenuecat_customer: skipped`
+  (additive enum value in openapi-v2.yaml).
+- **Verification:** `AccountDeletionWithoutBillingTest` (customer not deleted, `skipped`); `DeployedConfigTest`
+  (staging binds `false`, prod `true`).
+
+## <a id="be-bug-004"></a>BE-BUG-004: a misconfigured deployed instance started anyway
+
+- **Status:** Done
+- **Evidence:** without `SPRING_PROFILES_ACTIVE`, or with `LOG_UID_HASH_KEY` / RevenueCat / Firebase settings
+  missing, the service started and failed later (a random log-hash key, entitlement errors at runtime).
+- **Resolution:** 2026-10-16. `DeployedConfigGuard`: on Render (`RENDER=true`) a `prod` or `staging` profile is
+  required; with those profiles every required secret must be set (names reported, never values). Firebase
+  initialisation runs after it.
+- **Verification:** `DeployedConfigTest` (7 tests); local jar runs refused to start with the expected messages
+  (DEPLOYMENT.md §9.1).
+
+## <a id="be-bug-005"></a>BE-BUG-005: the Docker image fixed the heap at 400 MB and ran as root
+
+- **Status:** Fixed – unverified (the Docker build itself hasn't run; see BE-014)
+- **Evidence:** `ENTRYPOINT java -Xmx400m -Xms200m`, which wastes most of a 2 GB instance; no `USER`.
+- **Resolution:** 2026-10-16. `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`, a non-root user, and a
+  dependency layer (`dependency:go-offline`). Graceful shutdown set explicitly (45 s).
+- **Verification:** the jar ran with the same flags locally; `dependency:go-offline` succeeds. The image build is
+  first verified by the staging round.
+
+## <a id="be-bug-006"></a>BE-BUG-006: client IP behind Render's proxy is an unverified assumption
+
+- **Status:** Open (P0 before production; task BE-019)
+- **Evidence:** `ClientIpResolver` takes the `X-Forwarded-For` entry `TRUSTED_PROXIES` (1) positions from the
+  right. Render's behaviour is documented only in community threads. If the hop count is wrong, every caller
+  shares one IP, so the v1 limit (60/min) and the pre-auth v2 limit apply to all users together.
+- **Fix:** none needed if the assumption holds; otherwise adjust `TRUSTED_PROXIES`.
+- **Acceptance criteria:** DEPLOYMENT.md §9.2 step 5 passes on staging.
+
+## <a id="be-bug-007"></a>BE-BUG-007: v1 errors include provider text, and v1 falls back only on HTTP 429
+
+- **Status:** Open (P2). v1 is frozen; a change needs owner approval (task BE-020).
+- **Evidence:** the local smoke test (2026-10-16) with an invalid Groq key returned
+  `502 {"message":"AI service error from groq-gpt-oss-120b: 401 Unauthorized: …Invalid API Key…"}`. The raw
+  provider error reaches the client, and v1 didn't try Gemini because it falls back only on 429.
+- **Impact:** an invalid or revoked Groq key takes v1 down even when Gemini works; provider details leak (no
+  secrets).
+- **Mitigation now:** DEPLOYMENT.md §9.2 step 7 checks the Groq key with a real v1 request.
+
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
 - **Status:** Done (test-only; production code unaffected)

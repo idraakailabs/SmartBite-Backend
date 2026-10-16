@@ -6,6 +6,7 @@ import com.google.firebase.FirebaseOptions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -21,7 +22,9 @@ public class FirebaseConfig {
 
     static final String APP_NAME = "smartbite-backend";
 
+    /** Created after {@link DeployedConfigGuard}, so missing settings are reported by name first. */
     @Bean(destroyMethod = "delete")
+    @DependsOn("deployedConfigGuard")
     public FirebaseApp firebaseApp(V2Properties props) throws IOException {
         V2Properties.Stores stores = props.stores();
         GoogleCredentials credentials;

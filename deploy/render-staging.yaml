@@ -1,0 +1,50 @@
+# Render Blueprint for a SHORT-LIVED STAGING service (docs/ops/DEPLOYMENT.md §4).
+#
+# Nothing reads this file automatically. To use it: Render dashboard → New → Blueprint → pick this repo and set the
+# Blueprint path to deploy/render-staging.yaml. Render then asks for every `sync: false` value.
+#
+# - The name is deliberately different from the production service, so applying this Blueprint can never change
+#   production. Do NOT rename it to the production service's name.
+# - Billed per second while it runs. Suspend or delete it when a test round ends.
+# - Production is configured in the dashboard instead (DEPLOYMENT.md §5), not with a Blueprint.
+services:
+  - type: web
+    name: smartbite-api-staging
+    runtime: docker
+    branch: branch-01/v2-api
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    plan: 1c-2g            # "Standard": 1 CPU, 2 GB. 0.5c-512mb ("Starter") is likely too small (see DEPLOYMENT.md §3)
+    numInstances: 1
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: staging
+      # Staging data lives in stg_-prefixed collections; RevenueCat customers are never deleted from here.
+      - key: FIRESTORE_COLLECTION_PREFIX
+        value: stg_
+      - key: BILLING_DELETION_ENABLED
+        value: "false"
+      - key: PLACES_PROVIDER
+        value: fake
+      - key: PLACES_NEARBY_GLOBAL_DAILY_CAP
+        value: "20"
+      - key: PLACES_TEXT_GLOBAL_DAILY_CAP
+        value: "200"
+      - key: LOG_UID_HASH_KEY
+        generateValue: true
+      # Secrets: entered in the dashboard when the Blueprint is created. Never commit values.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+        sync: false
+      - key: REVENUECAT_SECRET_API_KEY
+        sync: false
+      - key: REVENUECAT_PROJECT_ID
+        sync: false
