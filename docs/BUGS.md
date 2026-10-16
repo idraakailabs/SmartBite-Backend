@@ -75,6 +75,39 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   `500 {"error":"Internal server error","message":"JSON parse error: …"}` instead of 400. The parser message
   also reaches the client. Same fix scope (BE-020).
 
+## <a id="be-bug-008"></a>BE-BUG-008: every recipe was rejected on staging (the parser was too strict)
+
+- **Status:** Fixed – unverified (needs a staging run after the fix is merged into `staging`)
+- **Evidence:** staging, 2026-10-16. `POST /api/v2/recipes` for "Mutton Biryani" returned
+  `502 GENERATION_FAILED` twice. The log said
+  `ai output unusable provider=groq-gpt-oss-20b reason=recipe missing ingredients, steps, difficulty or total time`.
+  The models answered with valid JSON that didn't match the schema exactly, and the reason didn't say which part
+  was missing.
+- **Resolution:** `RecipeParser` now accepts:
+  - minutes as whole-number decimals or numeric strings
+  - a missing total worked out from prep + cook + rest, or a top-level `total_minutes`
+  - difficulty synonyms; a missing difficulty defaults to medium
+  - steps as plain strings
+  - a flat `ingredients` list, and `name` for `item`
+
+  The diet check still applies to every ingredient. The failure reason now names what is missing. The start of
+  the raw output is logged at DEBUG (set `LOGGING_LEVEL_COM_IDRAAK_SMARTBITE_V2_RECIPE=DEBUG` on staging to see
+  it).
+- **Verification:** `RecipeParserTest` (5); recipe endpoint, gate and contract tests; `./mvnw -B verify` 167 pass.
+  **Outstanding:** a recipe loads on staging.
+
+## <a id="be-bug-009"></a>BE-BUG-009: "Anywhere · Turkish" returned mostly Pakistani dishes
+
+- **Status:** Open (P2, quality)
+- **Evidence:** staging, 2026-10-16, debug app, Anywhere with Turkish selected. The top pick was
+  "Turkish Chicken Döner Wrap", but the alternatives were "Mutton Haleem" and "Chicken Handi" (Pakistani).
+- **Likely cause:** the prompt treats the chosen cuisine as a preference, not a requirement, for alternatives.
+  The taste profile (Pakistani) wins.
+- **Fix:** make the chosen cuisines a hard constraint for every pick in the `anywhere` intent, and drop
+  non-matching picks in the parser (as the diet filter does).
+- **Acceptance criteria:** with one cuisine chosen, all three picks have that cuisine (unit test plus a staging
+  check).
+
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
 - **Status:** Done (test-only; production code unaffected)

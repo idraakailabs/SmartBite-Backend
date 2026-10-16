@@ -8,11 +8,28 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/** Safe parsing of a generated recipe, with the diet safety net applied to every ingredient. */
+/**
+ * Safe parsing of a generated recipe, with the diet safety net applied to every ingredient.
+ *
+ * <p>Models don't always follow the schema to the letter, so the parser accepts common variants (staging,
+ * 2026-10-16: every provider's recipe was rejected): minutes as whole-number decimals or numeric strings, a missing
+ * total worked out from prep + cook + rest, difficulty synonyms (a missing difficulty defaults to medium), steps as
+ * plain strings, and a flat {@code ingredients} list. What it still can't use is reported by name, and the start of
+ * the raw output is logged at DEBUG (recipe text only, no user data).
+ */
 final class RecipeParser {
+
+    private static final Logger log = LoggerFactory.getLogger(RecipeParser.class);
+    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:\\.\\d+)?\\b");
 
     /** The model said the dish can't be made for the diet. */
     static final class DietConflict extends RuntimeException {
@@ -34,36 +51,20 @@ final class RecipeParser {
         List<Recipe.IngredientGroup> groups = new ArrayList<>();
         List<String> allIngredients = new ArrayList<>();
         for (JsonNode g : root.path("ingredient_groups")) {
-            List<Recipe.Ingredient> items = new ArrayList<>();
-            for (JsonNode i : g.path("items")) {
-                String item = text(i, "item", 80);
-                if (item == null) continue;
-                String display = text(i, "display_quantity", 40);
-                Double qty = i.path("quantity").isNumber() && i.path("quantity").asDouble() >= 0 ? i.path("quantity").asDouble() : null;
-                Recipe.Metric metric = null;
-                JsonNode m = i.path("metric");
-                Recipe.MetricUnit unit = metricUnit(text(m, "unit", 10));
-                if (unit != null) {
-                    metric = new Recipe.Metric(m.path("quantity").isNumber() ? m.path("quantity").asDouble() : null, unit);
-                }
-                List<Recipe.Substitute> subs = new ArrayList<>();
-                for (JsonNode s : i.path("substitutes")) {
-                    String si = text(s, "item", 80);
-                    if (si != null && subs.size() < 3) subs.add(new Recipe.Substitute(si, text(s, "note", 80)));
-                }
-                items.add(new Recipe.Ingredient(item, display == null ? (qty == null ? "to taste" : String.valueOf(qty)) : display,
-                        qty, text(i, "unit", 20), metric, text(i, "notes", 80), i.path("optional").asBoolean(false),
-                        i.path("is_substitution").asBoolean(false), text(i, "substitution_for", 80), List.copyOf(subs)));
-                allIngredients.add(item);
-                if (items.size() == 30) break;
-            }
+            List<Recipe.Ingredient> items = items(g.path("items"), allIngredients);
             if (!items.isEmpty()) groups.add(new Recipe.IngredientGroup(orDefault(text(g, "title", 60), "Ingredients"), List.copyOf(items)));
             if (groups.size() == 8) break;
+        }
+        if (groups.isEmpty()) {
+            // A flat list instead of groups.
+            List<Recipe.Ingredient> items = items(root.path("ingredients"), allIngredients);
+            if (!items.isEmpty()) groups.add(new Recipe.IngredientGroup("Ingredients", List.copyOf(items)));
         }
 
         List<Recipe.Step> steps = new ArrayList<>();
         for (JsonNode s : root.path("steps")) {
-            String instruction = text(s, "instruction", 400);
+            // A step is an object, or a plain string when the model simplifies the schema.
+            String instruction = s.isString() ? clip(s.asString(), 400) : text(s, "instruction", 400);
             if (instruction == null) continue;
             List<String> keys = new ArrayList<>();
             for (JsonNode k : s.path("key_quantities")) {
@@ -73,12 +74,25 @@ final class RecipeParser {
                     nonNegative(s, "cook_minutes"), nonNegative(s, "rest_minutes"), positive(s, "timer_seconds")));
             if (steps.size() == 30) break;
         }
-        Difficulty difficulty = enumValue(text(root, "difficulty", 10));
+        Difficulty difficulty = difficulty(text(root, "difficulty", 20));
         JsonNode t = root.path("times");
         Integer total = positive(t, "total_minutes");
-        if (groups.isEmpty() || steps.isEmpty() || difficulty == null || total == null) {
-            throw new UnusableOutputException("recipe missing ingredients, steps, difficulty or total time");
+        if (total == null) total = positive(root, "total_minutes");
+        if (total == null) {
+            int sum = orZero(nonNegative(t, "prep_minutes")) + orZero(nonNegative(t, "cook_minutes")) + orZero(nonNegative(t, "rest_minutes"));
+            if (sum > 0) total = sum;
         }
+        List<String> missing = new ArrayList<>();
+        if (groups.isEmpty()) missing.add("ingredients");
+        if (steps.isEmpty()) missing.add("steps");
+        if (total == null) missing.add("total time");
+        if (!missing.isEmpty()) {
+            if (log.isDebugEnabled()) {
+                log.debug("unusable recipe output (first 2000 chars): {}", content.length() > 2000 ? content.substring(0, 2000) : content);
+            }
+            throw new UnusableOutputException("recipe missing " + String.join(", ", missing));
+        }
+        if (difficulty == null) difficulty = Difficulty.MEDIUM;
         if (requiredDiet != null && requiredDiet != Diet.NON_VEGETARIAN) {
             Diet declared = dietValue(text(root, "diet", 20));
             DietFilter.Declared d = new DietFilter.Declared(declared, bool(root, "contains_meat_or_fish"),
@@ -116,6 +130,64 @@ final class RecipeParser {
         return new Parsed(difficulty, times, List.copyOf(groups), List.copyOf(steps), List.copyOf(tips), variant);
     }
 
+    /** Ingredient objects from one list (a group's {@code items} or a flat {@code ingredients}); at most 30. */
+    private static List<Recipe.Ingredient> items(JsonNode list, List<String> allIngredients) {
+        List<Recipe.Ingredient> items = new ArrayList<>();
+        for (JsonNode i : list) {
+            String item = text(i, "item", 80);
+            if (item == null) item = text(i, "name", 80);
+            if (item == null) continue;
+            String display = text(i, "display_quantity", 40);
+            Double qty = i.path("quantity").isNumber() && i.path("quantity").asDouble() >= 0 ? i.path("quantity").asDouble() : null;
+            Recipe.Metric metric = null;
+            JsonNode m = i.path("metric");
+            Recipe.MetricUnit unit = metricUnit(text(m, "unit", 10));
+            if (unit != null) {
+                metric = new Recipe.Metric(m.path("quantity").isNumber() ? m.path("quantity").asDouble() : null, unit);
+            }
+            List<Recipe.Substitute> subs = new ArrayList<>();
+            for (JsonNode sub : i.path("substitutes")) {
+                String si = text(sub, "item", 80);
+                if (si != null && subs.size() < 3) subs.add(new Recipe.Substitute(si, text(sub, "note", 80)));
+            }
+            items.add(new Recipe.Ingredient(item, display == null ? (qty == null ? "to taste" : String.valueOf(qty)) : display,
+                    qty, text(i, "unit", 20), metric, text(i, "notes", 80), i.path("optional").asBoolean(false),
+                    i.path("is_substitution").asBoolean(false), text(i, "substitution_for", 80), List.copyOf(subs)));
+            allIngredients.add(item);
+            if (items.size() == 30) break;
+        }
+        return items;
+    }
+
+    /** easy / medium / hard, plus the synonyms models use; null when absent or unknown. */
+    private static Difficulty difficulty(String s) {
+        if (s == null) return null;
+        return switch (s.trim().toLowerCase(Locale.ROOT)) {
+            case "easy", "simple", "beginner", "basic" -> Difficulty.EASY;
+            case "medium", "moderate", "intermediate", "average" -> Difficulty.MEDIUM;
+            case "hard", "difficult", "advanced", "challenging", "expert" -> Difficulty.HARD;
+            default -> null;
+        };
+    }
+
+    /**
+     * Whole minutes or seconds: an integer, a whole-number decimal (90.0) or a numeric string ("90", "90 min").
+     * Null when absent or not a number.
+     */
+    private static Integer number(JsonNode n, String f) {
+        JsonNode v = n.path(f);
+        if (v.isInt()) return v.asInt();
+        if (v.isNumber()) {
+            double d = v.asDouble();
+            return d >= 0 && d <= 100_000 ? (int) Math.round(d) : null;
+        }
+        if (v.isString()) {
+            Matcher m = LEADING_NUMBER.matcher(v.asString());
+            return m.find() ? Integer.parseInt(m.group(1)) : null;
+        }
+        return null;
+    }
+
     private static JsonNode readObject(String content, ObjectMapper mapper) {
         if (content == null) throw new UnusableOutputException("empty");
         int start = content.indexOf('{');
@@ -147,13 +219,13 @@ final class RecipeParser {
     }
 
     private static Integer nonNegative(JsonNode n, String f) {
-        JsonNode v = n.path(f);
-        return v.isInt() && v.asInt() >= 0 ? v.asInt() : null;
+        Integer v = number(n, f);
+        return v != null && v >= 0 ? v : null;
     }
 
     private static Integer positive(JsonNode n, String f) {
-        JsonNode v = n.path(f);
-        return v.isInt() && v.asInt() >= 1 ? v.asInt() : null;
+        Integer v = number(n, f);
+        return v != null && v >= 1 ? v : null;
     }
 
     private static int orZero(Integer i) {
@@ -162,15 +234,6 @@ final class RecipeParser {
 
     private static Boolean bool(JsonNode n, String f) {
         return n.path(f).isBoolean() ? n.path(f).asBoolean() : null;
-    }
-
-    private static Difficulty enumValue(String s) {
-        if (s == null) return null;
-        try {
-            return Difficulty.valueOf(s.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 
     private static Diet dietValue(String s) {
