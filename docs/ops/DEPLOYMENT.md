@@ -115,7 +115,7 @@ feature branch ──merge──▶ staging ──(auto-deploy)──▶ staging
 - When staging passes, merge `staging` into `master` and deploy production manually.
 - `staging` and `master` only receive merges, never direct commits. Keeping them fast-forwardable from the
   feature branches avoids merge noise.
-- Created 2026-10-16 from `branch-01/v2-api` (commit `1f1bf93`).
+- Created 2026-10-16 from `branch-01/v2-api`.
 
 ### What isolation does and doesn't cover
 - **Separated:**
