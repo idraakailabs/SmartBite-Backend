@@ -95,7 +95,7 @@ Sources (checked 2026-10-16):
 |---|---|---|
 | Render service | **The existing service** (`smartbite-backend-zsyr.onrender.com`), upgraded in place | A **temporary** `smartbite-api-staging` service, from `deploy/render-staging.yaml`, created per test round and suspended or deleted afterwards |
 | Why | Every installed app calls this hostname for v1. A new production service would force an app update and keep the old service running for old versions, which means two instances to pay for | Keeps testing away from production, for about $0.83/day only while it runs |
-| Branch | `master`, auto-deploy **off**, manual deploys | `branch-01/v2-api` (or whichever branch is being tested), auto-deploy on |
+| Branch | `master`, auto-deploy **off**, manual deploys | **`staging`**, auto-deploy on |
 | Profile | `prod` | `staging` |
 | Firestore | Unprefixed collections | `stg_`-prefixed collections |
 | RevenueCat customer deletion | On | **Off** (`BILLING_DELETION_ENABLED=false`): the RevenueCat project is shared |
@@ -105,6 +105,17 @@ Sources (checked 2026-10-16):
 **$0 alternative to a staging service:** run the backend on the development machine and connect the phone over USB
 (`adb reverse`). It needs the same secrets locally, and the debug app currently accepts only `https://` addresses,
 so this needs a small change before it works. Use it for quick API checks; use a staging service before production.
+
+### Git workflow
+```
+feature branch ──merge──▶ staging ──(auto-deploy)──▶ staging service ──tested──▶ merge into master ──(manual deploy)──▶ production
+```
+- Work happens on feature branches, for example `branch-01/v2-api`.
+- To test something, merge it into `staging` and push. The staging service deploys it automatically.
+- When staging passes, merge `staging` into `master` and deploy production manually.
+- `staging` and `master` only receive merges, never direct commits. Keeping them fast-forwardable from the
+  feature branches avoids merge noise.
+- Created 2026-10-16 from `branch-01/v2-api` (commit `1f1bf93`).
 
 ### What isolation does and doesn't cover
 - **Separated:**
@@ -126,7 +137,7 @@ Before the cutover (§10), on the **existing** service:
 | Setting | Value |
 |---|---|
 | Runtime | Docker (`./Dockerfile`, context: repo root) |
-| Branch | `master` (after `branch-01/v2-api` is merged) |
+| Branch | `master` (after `staging` is merged into it) |
 | Auto-Deploy | **Off**. Turn it off *before* merging, or the merge deploys immediately |
 | Instance type | Standard (1 CPU, 2 GB) |
 | Health check path | `/actuator/health` (the current check is probably `/`, which keeps working) |
@@ -286,7 +297,7 @@ Prerequisite: the staging round passed.
 3. **Size and timing:** set the instance type to **Standard** and the max shutdown delay to 60 s.
 4. **Environment variables:** add the production values (§6). Use "Save only" if offered. Otherwise Render
    redeploys the current code with the new variables, which is harmless: the old code ignores them.
-5. **Merge and push:** merge `branch-01/v2-api` into `master` and push.
+5. **Merge and push:** merge `staging` (the tested code) into `master` and push.
 6. **Deploy:** Manual Deploy → "Deploy latest commit". Render builds the image, starts it, and switches traffic
    only when the health check passes. If startup fails, the old version keeps serving.
 7. **Health check path:** set it to `/actuator/health`.
@@ -346,7 +357,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 
 **Before staging**
 - [ ] Billing: Pro plan active; note the existing service's instance type and region.
-- [ ] Push `branch-01/v2-api` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
+- [ ] Push `branch-01/v2-api` and `staging` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
 - [ ] Create the secrets (§7.1, §7.2) and generate a `LOG_UID_HASH_KEY` for each environment.
 - [ ] Check the Firestore rules (§7.3).
 
@@ -359,7 +370,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 **Production**
 - [ ] Existing service: Auto-Deploy **off**, Standard instance, 60 s shutdown delay.
 - [ ] Production variables (§6), marked secret.
-- [ ] Merge `branch-01/v2-api` → `master`; push.
+- [ ] Merge `staging` → `master`; push.
 - [ ] Manual deploy; health check path `/actuator/health`.
 - [ ] Verify (§10 step 8): health, 401 without a token, one v1 request, the Play Store app gets picks.
 - [ ] Watch the logs and metrics for an hour; know where Rollback is (§11).

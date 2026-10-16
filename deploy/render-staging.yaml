@@ -11,7 +11,9 @@ services:
   - type: web
     name: smartbite-api-staging
     runtime: docker
-    branch: branch-01/v2-api
+    # Staging always deploys the `staging` branch. Promote work by merging a feature branch into `staging`
+    # (DEPLOYMENT.md §4, Git workflow).
+    branch: staging
     dockerfilePath: ./Dockerfile
     region: singapore
     plan: 1c-2g            # "Standard": 1 CPU, 2 GB. 0.5c-512mb ("Starter") is likely too small (see DEPLOYMENT.md §3)
