@@ -11,12 +11,16 @@ import java.util.List;
 @Configuration
 public class AiConfig {
 
+    /** Head-room for Gemini 3's reasoning, which counts against max_tokens (BE-BUG-014). */
+    static final int GEMINI_REASONING_TOKENS = 6000;
+
     @Bean
     public ChatModels v2ChatModels(V2Properties props, ObjectMapper mapper) {
         V2Properties.Ai ai = props.ai();
         return new ChatModels(List.of(
                 new OpenAiCompatibleChatModel("groq-gpt-oss-120b", "openai/gpt-oss-120b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper),
-                new OpenAiCompatibleChatModel("gemini-flash-lite", ai.geminiModel(), ai.geminiBaseUrl(), ai.geminiApiKey(), false, ai.connectTimeout(), mapper),
+                new OpenAiCompatibleChatModel("gemini-flash-lite", ai.geminiModel(), ai.geminiBaseUrl(), ai.geminiApiKey(), false,
+                        GEMINI_REASONING_TOKENS, ai.connectTimeout(), mapper),
                 new OpenAiCompatibleChatModel("groq-gpt-oss-20b", "openai/gpt-oss-20b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper)));
     }
 

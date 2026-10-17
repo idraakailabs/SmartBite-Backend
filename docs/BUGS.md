@@ -216,8 +216,15 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   variable, not a release. Cost: $0.30 / $2.50 per 1M input / output tokens instead of $0.10 / $0.40, only when
   Groq fails (COSTS.md).
 - **Verification:** `V1GoldenContractTest` and `SuggestionEndpointTest` send the configured model; `./mvnw -B verify`
-  218 tests, 0 failures. **Outstanding:** repeat the staging test (wrong Groq key → v1 and v2 answer through Gemini).
-  Gemini 3 models always reason, which may use part of `max_tokens`; check that a recipe still parses.
+  218 tests, 0 failures.
+- **Staging re-test (2026-10-17 14:10Z, `bad6d78`, `GROQ_API_KEY` deliberately wrong):** v1 200 in 3.3 s (three
+  suggestions); v2 picks 200 in 3.6 s (`degraded: true`). **A recipe failed:** 502 in 4.2 s,
+  `ai output unusable provider=gemini-flash-lite reason=invalid JSON`.
+- **Second fix (2026-10-17, `branch-03/pre-production`):** Gemini 3 always reasons, and on Google's
+  OpenAI-compatible endpoint the reasoning counts against `max_tokens` (4000 for a recipe), so the recipe JSON was
+  cut off. Gemini gets 6000 extra tokens of head-room (`AiConfig.GEMINI_REASONING_TOKENS`); Groq is unchanged.
+  A reply that ends with `finish_reason: length` now logs `ai output cut off provider=… max_tokens=…`. Tests:
+  `OpenAiCompatibleChatModelTest` (2). **Outstanding:** a recipe through Gemini on staging after the merge.
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 

@@ -1,5 +1,7 @@
 package com.idraak.smartbite.v2.ai;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -22,16 +24,29 @@ import java.time.Duration;
  */
 public class OpenAiCompatibleChatModel implements ChatModel {
 
+    private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleChatModel.class);
+
     private final String name;
     private final String model;
     private final URI endpoint;
     private final String apiKey;
     private final boolean jsonMode;
+    private final int reasoningTokens;
     private final HttpClient http;
     private final ObjectMapper mapper;
 
     public OpenAiCompatibleChatModel(String name, String model, String baseUrl, String apiKey, boolean jsonMode,
                                      Duration connectTimeout, ObjectMapper mapper) {
+        this(name, model, baseUrl, apiKey, jsonMode, 0, connectTimeout, mapper);
+    }
+
+    /**
+     * @param reasoningTokens added to every request's {@code max_tokens}. Gemini 3 models always reason, and their
+     *                        reasoning counts against {@code max_tokens}, which cut recipes off (staging, 2026-10-17).
+     */
+    public OpenAiCompatibleChatModel(String name, String model, String baseUrl, String apiKey, boolean jsonMode,
+                                     int reasoningTokens, Duration connectTimeout, ObjectMapper mapper) {
+        this.reasoningTokens = Math.max(0, reasoningTokens);
         this.name = name;
         this.model = model;
         this.endpoint = URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions");
@@ -54,7 +69,7 @@ public class OpenAiCompatibleChatModel implements ChatModel {
         messages.addObject().put("role", "system").put("content", systemPrompt);
         messages.addObject().put("role", "user").put("content", userPrompt);
         body.put("temperature", 0.7);
-        body.put("max_tokens", maxTokens);
+        body.put("max_tokens", maxTokens + reasoningTokens);
         if (jsonMode) body.putObject("response_format").put("type", "json_object");
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
@@ -82,7 +97,12 @@ public class OpenAiCompatibleChatModel implements ChatModel {
         if (status >= 400) throw new ProviderException(ProviderException.Kind.CLIENT_ERROR, name + " " + status, null);
         try {
             JsonNode json = mapper.readTree(response.body());
-            JsonNode content = json.path("choices").path(0).path("message").path("content");
+            JsonNode choice = json.path("choices").path(0);
+            if ("length".equals(choice.path("finish_reason").asString(""))) {
+                // The parser will reject the cut-off JSON; this line says why.
+                log.warn("ai output cut off provider={} finish_reason=length max_tokens={}", name, maxTokens + reasoningTokens);
+            }
+            JsonNode content = choice.path("message").path("content");
             if (!content.isString()) throw new ProviderException(ProviderException.Kind.SERVER_ERROR, name + " empty content", null);
             return content.asString();
         } catch (RuntimeException e) {
