@@ -17,11 +17,10 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
-| Firestore security rules | **Not in this repository.** The current console rules refer to an undefined `userId`; replace them with §7.3 |
+| Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
 
 **Blockers before production:**
 - the remaining staging check: §15.2 step 5 (a second device)
-- the Firestore rules (§7.3)
 - before turning D-024 on in production only: the $6 database, the hosted privacy policy and the Play Data safety
   form (§15.3)
 
@@ -227,6 +226,12 @@ service cloud.firestore {
 Use the Rules Playground to check that a signed-in user can still read and write their own `users/{uid}`. Do this
 **before** publishing changed rules.
 
+**What was done (2026-10-17, production project):** the published rules referred to an undefined `userId`, which
+denied every app read and write (nothing was exposed). The owner replaced them with a **write-only** variant of the
+rules above: `users/{uid}` allows `create, update, delete` for its own user and denies `read`, because the live app
+overwrites the phone's profile with the Firestore copy when Profile opens, and old copies may exist. Playground:
+create own document allowed, another user's denied, read denied, `quota/test` denied. Details: Android TECH-008.
+
 ### 7.4 Remote Config, for testing v2 with the debug app only
 1. Add a condition "App is `com.idraak.ai.smartbite.debug`" and set `api_v2_enabled` to `true` under it.
 2. Keep the default `false`.
@@ -297,6 +302,8 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 | Startup log (step 3), 2026-10-17 | `The following 1 profile is active: "staging"`; `remote config settings refreshed free_daily=3 recipe_gate=true` (the service account reads the template); `database ready; migrations applied=0 schema_version=null` (a logging bug, BE-BUG-012, fixed on `branch-03`); the only `ERROR` was the step-5b GET (fixed, BE-BUG-007 note) |
 | Memory (step 8), 2026-10-17 | About 16–18 % of the 2 GB limit (about 330–360 MB), flat across two deploys and the day's testing |
 | Postgres stores, 2026-10-17 | `SMARTBITE_STORES_MODE=postgres` on staging. Health UP, v1 200, v2 401 without a token; a new account's picks count in Postgres (`used 1 of 3`); a recipe 200 (but one step only: BE-BUG-013, fixed on `branch-03`); a report 201. The startup log now names the store (`document store: postgres prefix='stg_'`, after the merge) |
+| After the merge (`986088e`), 2026-10-17 | Two recipes on the first try with full methods (6 and 9 steps), the free plan showing 2 steps and the Premium lock (BE-BUG-013 verified) |
+| Postgres stores complete, 2026-10-17 | Startup log `document store: postgres prefix='stg_'` and `database ready; migrations applied=0 schema_version=2` (BE-BUG-012 verified). Account deletion on Postgres: 200 `completed`, `quota_counter` deleted, `reports` anonymized (1), `user_data` deleted |
 | **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
 
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.
@@ -402,7 +409,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Billing: Pro plan active; note the existing service's instance type and region.
 - [x] Push the feature branches and `staging` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
 - [x] Create the secrets (§7.1, §7.2) and generate a `LOG_UID_HASH_KEY` for each environment.
-- [ ] Check the Firestore rules (§7.3). The current console rules refer to an undefined `userId`.
+- [x] Check the Firestore rules (§7.3). Replaced 2026-10-17 (the old rules denied all app access).
 
 **Staging round**
 - [x] New → Blueprint → `deploy/render-staging.yaml`; enter the six secrets (2026-10-16).

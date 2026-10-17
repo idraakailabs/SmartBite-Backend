@@ -176,19 +176,19 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-012"></a>BE-BUG-012: the startup log said `schema_version=null` after a restart
 
-- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge)
+- **Status:** Done (2026-10-17, verified on staging `986088e`)
 - **Evidence:** staging, 2026-10-17 10:45Z: `database ready; migrations applied=0 schema_version=null`. The
   database was fine (history sync and deletion worked); `DatabaseConfig` logged Flyway's
   `MigrateResult.targetSchemaVersion`, which is null when no migration runs.
 - **Impact:** a misleading log line only; it looked like the schema was missing.
 - **Resolution:** log `flyway.info().current()` instead, so a restart says `applied=0 schema_version=2`.
 - **Verification:** the `HistoryEndpointTest` and `ProfileEndpointTest` runs log `applied=2 schema_version=2` on a
-  new database and `applied=0 schema_version=2` on the second start. **Outstanding:** the line on staging after the
-  merge.
+  new database and `applied=0 schema_version=2` on the second start. Staging 12:38Z: `database ready; migrations
+  applied=0 schema_version=2`.
 
 ## <a id="be-bug-013"></a>BE-BUG-013: a one-step recipe was accepted, cached and shown as the whole recipe
 
-- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge)
+- **Status:** Done (2026-10-17, verified on staging `986088e`)
 - **Evidence:** staging (`e35d551`, Postgres stores), 2026-10-17, Pixel 6a, free account: `POST /api/v2/recipes`
   for "Chicken Tikka Masala" returned 200 with `total_steps: 1` (only "marinate the chicken"). The model either
   wrote one step or wrote steps the lenient parser (BE-BUG-008) couldn't read and skipped silently.
@@ -199,7 +199,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   - The recipe prompt version is now `recipe-v2.2`. It is part of the cache key, so recipes cached before the fix
     are no longer served.
 - **Verification:** `RecipeParserTest.aPartialMethodIsRejectedNotShownAsTheWholeRecipe`; `./mvnw -B verify` 218
-  tests, 0 failures. **Outstanding:** recipes on staging after the merge.
+  tests, 0 failures. Staging (`986088e`, Postgres stores), free account: "Chicken Chettinad" (6 steps) and "Goan
+  Fish Curry" (9 steps) loaded on the first try, each showing 2 steps and the Premium lock.
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
