@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -51,6 +52,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGeneral(Exception ex) {
+        // Spring's own client errors (wrong method, unsupported content type, …) keep their status instead of 500.
+        if (ex instanceof ErrorResponse spring && spring.getStatusCode().is4xxClientError()) {
+            HttpStatus status = HttpStatus.resolve(spring.getStatusCode().value());
+            return ResponseEntity.status(spring.getStatusCode())
+                    .body(Map.of("error", status == null ? "Bad request" : status.getReasonPhrase(),
+                            "message", "This request isn't supported by this endpoint"));
+        }
         log.error("v1 request failed: {}", ex.getClass().getName());
         return ResponseEntity.internalServerError()
                 .body(Map.of("error", "Internal server error", "message", "Something went wrong. Please try again."));

@@ -43,8 +43,12 @@ public class DatabaseConfig {
         // A runaway query can't hold a connection for long.
         config.setConnectionInitSql("SET statement_timeout = " + db.statementTimeout().toMillis());
         HikariDataSource ds = new HikariDataSource(config);
-        var result = Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
-        log.info("database ready; migrations applied={} schema_version={}", result.migrationsExecuted, result.targetSchemaVersion);
+        Flyway flyway = Flyway.configure().dataSource(ds).locations("classpath:db/migration").load();
+        var result = flyway.migrate();
+        // targetSchemaVersion is null when nothing was applied (every restart), so read the version from the database.
+        var current = flyway.info().current();
+        log.info("database ready; migrations applied={} schema_version={}", result.migrationsExecuted,
+                current == null ? "none" : current.getVersion());
         return ds;
     }
 

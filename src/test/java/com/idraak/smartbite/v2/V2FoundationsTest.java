@@ -34,6 +34,14 @@ class V2FoundationsTest {
     }
 
     @Test
+    void aWrongMethodIsAClientErrorInProblemJson() throws Exception {
+        // v1 returned 500 for a wrong method (staging, 2026-10-17); v2 answers with a problem+json client error.
+        mvc.perform(get("/api/v2/meal-suggestions").header("Authorization", "Bearer test:method-1"))
+                .andExpect(status().is4xxClientError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
     void invalidTokenIs401() throws Exception {
         mvc.perform(get("/api/v2/anything").header("Authorization", "Bearer not-a-token"))
                 .andExpect(status().isUnauthorized())

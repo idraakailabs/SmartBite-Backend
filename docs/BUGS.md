@@ -44,8 +44,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-005"></a>BE-BUG-005: the Docker image fixed the heap at 400 MB and ran as root
 
-- **Status:** Fixed – partly verified. Render built and runs the image (staging, 2026-10-16); the memory check
-  (DEPLOYMENT.md §9.2 step 8) is outstanding
+- **Status:** Done (2026-10-17). Render built and runs the image, and memory stays at about 16–18 % of 2 GB
+  (about 330–360 MB) across two deploys and a day of testing
 - **Evidence:** `ENTRYPOINT java -Xmx400m -Xms200m`, which wastes most of a 2 GB instance; no `USER`.
 - **Resolution:** 2026-10-16. `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`, a non-root user, and a
   dependency layer (`dependency:go-offline`). Graceful shutdown set explicitly (45 s).
@@ -54,14 +54,17 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-006"></a>BE-BUG-006: client IP behind Render's proxy is an unverified assumption
 
-- **Status:** Open (P0 before production; task BE-019)
+- **Status:** Done (2026-10-17, verified on staging; task BE-019)
 - **Evidence:** `ClientIpResolver` takes the `X-Forwarded-For` entry `TRUSTED_PROXIES` (1) positions from the
   right. Render's behaviour is documented only in community threads. If the hop count is wrong, every caller
   shares one IP, so the v1 limit (60/min) and the pre-auth v2 limit apply to all users together.
 - **Fix:** none needed if the assumption holds; otherwise adjust `TRUSTED_PROXIES`.
 - **Acceptance criteria:** DEPLOYMENT.md §9.2 step 5 passes on staging.
 - **Progress (2026-10-16, staging):** one machine is counted as one client, and a spoofed header doesn't bypass
-  the limit. Still to check: a second network is counted separately (step 5b).
+  the limit.
+- **Verification (2026-10-17, staging):** while the development PC was kept over its limit (249 × 429 in 50 s),
+  check-host.net nodes in Madrid, Mumbai, Warsaw and Moscow reached the endpoint without a 429. Each network is
+  its own client; `TRUSTED_PROXIES=1` is correct for Render.
 
 ## <a id="be-bug-007"></a>BE-BUG-007: v1 errors include provider text, and v1 falls back only on HTTP 429
 
@@ -87,6 +90,11 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 - **Verification:** `V1GoldenContractTest`: a 401 followed by an unusable answer still returns the golden
   response; error bodies never include provider text; a bare number is 400. The existing golden and hardening tests
   pass. Staging (`a00267b`): a malformed body returns `400` with fixed text; the golden request returns 200 in 3.1 s.
+- **Also found (2026-10-17, staging, during BE-019):** a GET on `/api/v1/meal-suggestions` returned 500 (the
+  catch-all handler swallowed Spring's own 405). Fixed on `branch-03/pre-production`: Spring client errors keep
+  their 4xx status with fixed text (wrong method 405, unsupported content type 415). Tests:
+  `V1GoldenContractTest.aWrongMethodOrContentTypeIsAClientError`; v2 already answered with a problem+json client
+  error (`V2FoundationsTest`). **Outstanding:** the merge into `staging`.
 
 ## <a id="be-bug-008"></a>BE-BUG-008: every recipe was rejected on staging (the parser was too strict)
 
@@ -165,6 +173,18 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 - **Resolution:** 2026-10-17. The test's client uses a 10 s read timeout; the timeout case uses its own client with
   500 ms against a 3 s delay.
 - **Verification:** `RevenueCatClientTest` 5/5, and a full `./mvnw -B verify` (213 tests, 0 failures).
+
+## <a id="be-bug-012"></a>BE-BUG-012: the startup log said `schema_version=null` after a restart
+
+- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge)
+- **Evidence:** staging, 2026-10-17 10:45Z: `database ready; migrations applied=0 schema_version=null`. The
+  database was fine (history sync and deletion worked); `DatabaseConfig` logged Flyway's
+  `MigrateResult.targetSchemaVersion`, which is null when no migration runs.
+- **Impact:** a misleading log line only; it looked like the schema was missing.
+- **Resolution:** log `flyway.info().current()` instead, so a restart says `applied=0 schema_version=2`.
+- **Verification:** the `HistoryEndpointTest` and `ProfileEndpointTest` runs log `applied=2 schema_version=2` on a
+  new database and `applied=0 schema_version=2` on the second start. **Outstanding:** the line on staging after the
+  merge.
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 

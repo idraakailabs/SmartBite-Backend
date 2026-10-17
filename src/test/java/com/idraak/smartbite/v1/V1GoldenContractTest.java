@@ -27,6 +27,7 @@ import java.util.TreeSet;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -151,6 +152,14 @@ class V1GoldenContractTest {
         assertThat(keys(json)).containsExactly("error", "message");
         assertThat(json.getString("error")).isEqualTo("Invalid request body");
         assertThat(body(result)).doesNotContain("JSON parse error");
+    }
+
+    @Test
+    void aWrongMethodOrContentTypeIsAClientError() throws Exception {
+        // Staging, 2026-10-17: a browser GET on the v1 endpoint returned 500.
+        mvc.perform(get("/api/v1/meal-suggestions")).andExpect(status().isMethodNotAllowed());
+        mvc.perform(post("/api/v1/meal-suggestions").contentType(MediaType.TEXT_PLAIN).content("x"))
+                .andExpect(status().isUnsupportedMediaType());
     }
 
     @Test
