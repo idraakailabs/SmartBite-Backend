@@ -11,7 +11,7 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 
 | Area | State |
 |---|---|
-| Code | `staging` (`ff17a40`) is deployed to staging. `branch-03/pre-production` adds the pre-production fixes (BE-BUG-007, -008, -009, -011) and isn't merged yet. `./mvnw -B verify`: 215 tests pass, 11 Firestore emulator tests skipped there and run separately |
+| Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 215 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |
@@ -20,8 +20,8 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Firestore security rules | **Not in this repository.** The current console rules refer to an undefined `userId`; replace them with §7.3 |
 
 **Blockers before production:**
-- `branch-03/pre-production` merged into `staging`, then the staging checks: §9.2 steps 3, 5b, 6 and 8, and §15.2
-  step 5
+- the remaining staging checks: §9.2 steps 3, 5b, 6 (a report, deletion) and 8, and §15.2 step 5 (second device,
+  deletion)
 - the Firestore rules (§7.3)
 - before turning D-024 on in production only: the $6 database, the hosted privacy policy and the Play Data safety
   form (§15.3)
@@ -291,6 +291,8 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 | History | `GET /api/v2/me/history` 200; the sync worker succeeded |
 | History upload (checked 2026-10-17 on the phone) | The app's outbox for the account is empty, the initial upload is marked done and a sync cursor is saved, with a meal logged on 2026-10-16. The app clears its outbox only after a successful push, so the meal reached the server. The `meal_history` row itself hasn't been looked at |
 | Re-check 2026-10-17 (still `ff17a40`) | Cook at home picks 200 in 9.8 s (3 Pakistani dishes, quota `used` 2 of 3); v1 golden request 200 in 3.2 s; `/api/v2/me/history` without a token 401; a malformed v1 body still 500 with parser text (fixed on `branch-03/pre-production`, not deployed) |
+| Re-check 2026-10-17 (`a00267b`, pre-production fixes) | A malformed v1 body is now 400 with fixed text (BE-BUG-007); the v1 golden request 200 in 3.1 s; with the free sets used up, picks return `429 DAILY_LIMIT_REACHED` and the app shows the paywall |
+| Premium, 2026-10-17 | A RevenueCat Test Store purchase on the debug build: staging returned picks with `is_premium: true, unlimited: true` after the free sets were used, and an unlocked 9-step recipe on the first try (BE-BUG-008). Anywhere with Turkish: three Turkish picks (BE-BUG-009). A real Google Play test purchase is still to do (Android TECH-019) |
 | **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
 
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.
@@ -404,7 +406,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [x] Debug app: `SMARTBITE_STAGING_API_URL`, the Remote Config condition (§7.4), a test account.
 - [x] D-024: `DATABASE_URL` on staging and the debug-app condition for `backend_user_data_enabled` (§15.2 steps 1–4).
 - [ ] D-024 checks (§15.2 step 5).
-- [ ] Merge `branch-03/pre-production` into `staging` and repeat the affected checks: a recipe, Anywhere with one
+- [x] Merge `branch-03/pre-production` into `staging` and repeat the affected checks (2026-10-17, all passed): a recipe, Anywhere with one
   cuisine, a v1 request.
 - [ ] Suspend or delete the staging service when testing ends.
 

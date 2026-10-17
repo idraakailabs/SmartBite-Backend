@@ -65,8 +65,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-007"></a>BE-BUG-007: v1 errors include provider text, and v1 falls back only on HTTP 429
 
-- **Status:** Fixed – unverified (2026-10-17, `branch-03/pre-production`; needs a staging run). Built after the
-  owner asked for every item to be completed before production (task BE-020).
+- **Status:** Done (2026-10-17, verified on staging `a00267b`). Built after the owner asked for every item to be
+  completed before production (task BE-020).
 - **Evidence:** the local smoke test (2026-10-16) with an invalid Groq key returned
   `502 {"message":"AI service error from groq-gpt-oss-120b: 401 Unauthorized: …Invalid API Key…"}`. The raw
   provider error reaches the client, and v1 didn't try Gemini because it falls back only on 429.
@@ -86,11 +86,11 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
     (`MealSuggestionRepositoryImpl` maps it to `MealSuggestionError.Server`), and it never sends a malformed body.
 - **Verification:** `V1GoldenContractTest`: a 401 followed by an unusable answer still returns the golden
   response; error bodies never include provider text; a bare number is 400. The existing golden and hardening tests
-  pass. **Outstanding:** a staging run.
+  pass. Staging (`a00267b`): a malformed body returns `400` with fixed text; the golden request returns 200 in 3.1 s.
 
 ## <a id="be-bug-008"></a>BE-BUG-008: every recipe was rejected on staging (the parser was too strict)
 
-- **Status:** Open: the parser fix is deployed, but recipes still fail on staging (2026-10-17)
+- **Status:** Done (2026-10-17; second fix verified on staging)
 - **Evidence:** staging, 2026-10-16. `POST /api/v2/recipes` for "Mutton Biryani" returned
   `502 GENERATION_FAILED` twice. The log said
   `ai output unusable provider=groq-gpt-oss-20b reason=recipe missing ingredients, steps, difficulty or total time`.
@@ -118,12 +118,13 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   `directions` or `preparation` (an array, or an object keyed by number), and a step's text from `text`,
   `description`, `step`, `details`, `content` or `action`. When something is still missing, the WARN reason lists
   the field names the model used (never the recipe text), so the next unknown shape shows up in the log without
-  DEBUG. Tests: `RecipeParserTest` (7). **Outstanding:** the merge into `staging`, then a few recipes loading on
-  the first try.
+  DEBUG. Tests: `RecipeParserTest` (7).
+- **Verification (staging `a00267b`, 2026-10-17, Pixel 6a, Premium):** "Lahori Lamb Biryani" loaded on the first
+  try (200 in 9 s, 9 steps, unlocked). More recipes will show in the logs; any new shape now names its fields.
 
 ## <a id="be-bug-009"></a>BE-BUG-009: "Anywhere · Turkish" returned mostly Pakistani dishes
 
-- **Status:** Fixed – unverified (2026-10-17, `branch-03/pre-production`, task BE-024; needs a staging check)
+- **Status:** Done (2026-10-17, verified on staging `a00267b`; task BE-024)
 - **Evidence:** staging, 2026-10-16, debug app, Anywhere with Turkish selected. The top pick was
   "Turkish Chicken Döner Wrap", but the alternatives were "Mutton Haleem" and "Chicken Handi" (Pakistani).
 - **Likely cause:** the prompt treats the chosen cuisine as a preference, not a requirement, for alternatives.
@@ -141,7 +142,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
     `meta.degraded = true`, instead of failing the set.
   - Other intents are unchanged. Prompt version `suggest-v2.2`.
 - **Verification:** `SuggestionEndpointTest` (new: off-cuisine picks are replaced; the fallback is marked
-  degraded; Cook at home doesn't require the cuisine). **Outstanding:** a staging check.
+  degraded; Cook at home doesn't require the cuisine). Staging, Pixel 6a, Anywhere with Turkish: İskender Kebab,
+  Tavuk Çorbası and Lahmacun, all `origin.cuisine` Turkish, `suggest-v2.2`, not degraded.
 
 ## <a id="be-bug-010"></a>BE-BUG-010: the deployed profiles ignored `SMARTBITE_STORES_MODE`
 
