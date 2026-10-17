@@ -137,7 +137,7 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
    suggestions, intent, area label/city, refine options. User strings are embedded as JSON data, never as
    instructions. The model returns structured attributes only (name, description, category, origin, diet,
    contains_egg, spice level, primary protein, ingredients, time, difficulty, `similar_to`).
-5. **Providers** (same chain as v1): Groq `openai/gpt-oss-120b` → Gemini `gemini-2.5-flash-lite` → Groq
+5. **Providers** (same chain as v1): Groq `openai/gpt-oss-120b` → Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`) → Groq
    `openai/gpt-oss-20b`. Fallback on 429, 5xx, timeouts, connection errors **and** unparseable or schema-invalid
    output. 401/403 from a provider also falls back, and logs an error (misconfigured key). JSON output mode is
    requested where the provider supports it (to be verified per provider during implementation).

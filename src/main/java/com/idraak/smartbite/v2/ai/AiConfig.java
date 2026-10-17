@@ -7,7 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
-/** v2 AI clients: the same provider order and models as v1, with v2's own timeouts. */
+/** v2 AI clients: the same provider order and models as v1 (Gemini's from {@code GEMINI_MODEL}), with v2's own timeouts. */
 @Configuration
 public class AiConfig {
 
@@ -16,7 +16,7 @@ public class AiConfig {
         V2Properties.Ai ai = props.ai();
         return new ChatModels(List.of(
                 new OpenAiCompatibleChatModel("groq-gpt-oss-120b", "openai/gpt-oss-120b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper),
-                new OpenAiCompatibleChatModel("gemini-flash-lite", "gemini-2.5-flash-lite", ai.geminiBaseUrl(), ai.geminiApiKey(), false, ai.connectTimeout(), mapper),
+                new OpenAiCompatibleChatModel("gemini-flash-lite", ai.geminiModel(), ai.geminiBaseUrl(), ai.geminiApiKey(), false, ai.connectTimeout(), mapper),
                 new OpenAiCompatibleChatModel("groq-gpt-oss-20b", "openai/gpt-oss-20b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper)));
     }
 

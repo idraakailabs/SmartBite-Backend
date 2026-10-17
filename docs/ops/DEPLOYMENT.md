@@ -304,6 +304,7 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 | Postgres stores, 2026-10-17 | `SMARTBITE_STORES_MODE=postgres` on staging. Health UP, v1 200, v2 401 without a token; a new account's picks count in Postgres (`used 1 of 3`); a recipe 200 (but one step only: BE-BUG-013, fixed on `branch-03`); a report 201. The startup log now names the store (`document store: postgres prefix='stg_'`, after the merge) |
 | After the merge (`986088e`), 2026-10-17 | Two recipes on the first try with full methods (6 and 9 steps), the free plan showing 2 steps and the Premium lock (BE-BUG-013 verified) |
 | Postgres stores complete, 2026-10-17 | Startup log `document store: postgres prefix='stg_'` and `database ready; migrations applied=0 schema_version=2` (BE-BUG-012 verified). Account deletion on Postgres: 200 `completed`, `quota_counter` deleted, `reports` anonymized (1), `user_data` deleted |
+| Gemini fallback, 2026-10-17 | With `GROQ_API_KEY` deliberately wrong, v1 returned 502: Gemini answered 404 (`gemini-2.5-flash-lite` isn't available to this project). Fixed with `GEMINI_MODEL`, default `gemini-3.5-flash-lite` (BE-BUG-014); repeat after the merge. Groq key restored, v1 200 |
 | **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
 
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.

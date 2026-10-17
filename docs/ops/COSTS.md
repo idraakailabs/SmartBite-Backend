@@ -14,7 +14,7 @@
 | Places Place Details Essentials | 10,000/month | $5.00 per 1,000 | same |
 | Groq `openai/gpt-oss-120b` | n/a | $0.15 / 1M input, $0.60 / 1M output tokens | [Groq model page](https://console.groq.com/docs/model/openai/gpt-oss-120b) (no date shown) |
 | Groq `openai/gpt-oss-20b` | n/a | $0.075 / 1M input, $0.30 / 1M output | [Groq model page](https://console.groq.com/docs/model/openai/gpt-oss-20b) (no date shown) |
-| Gemini `gemini-2.5-flash-lite` (paid tier) | Free tier exists | $0.10 / 1M input, $0.40 / 1M output (incl. thinking) | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), updated 2026-10-09 |
+| Gemini `gemini-3.5-flash-lite` (paid tier; the default since 2026-10-17, BE-BUG-014) | Free tier exists | $0.30 / 1M input, $2.50 / 1M output | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-10-17. Used only when Groq fails. Earlier `gemini-2.5-flash-lite`: $0.10 / $0.40 |
 | Firestore | 50k reads, 20k writes, 20k deletes per day | $0.03–$0.033 / 100k reads, $0.09–$0.099 / 100k writes (by location) | [Firestore pricing](https://firebase.google.com/docs/firestore/pricing), [Cloud pricing](https://cloud.google.com/firestore/pricing) |
 
 **Privacy note:** the Gemini pricing page lists the free tier as "content used to improve our products" and the paid

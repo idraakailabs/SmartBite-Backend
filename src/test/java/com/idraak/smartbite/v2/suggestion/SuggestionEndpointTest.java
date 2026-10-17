@@ -225,7 +225,7 @@ class SuggestionEndpointTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.meta.degraded").value(true));
         gemini.verify(postRequestedFor(urlEqualTo("/chat/completions"))
-                .withRequestBody(matchingJsonPath("$.model", equalTo("gemini-2.5-flash-lite"))));
+                .withRequestBody(matchingJsonPath("$.model", equalTo("gemini-3.5-flash-lite"))));
     }
 
     @Test

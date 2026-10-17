@@ -22,6 +22,8 @@ spring:
 gemini:
     api-key: ${GEMINI_API_KEY}
     base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    # gemini-2.5-flash-lite answers only projects that used 2.5 models before (404 otherwise, staging 2026-10-17).
+    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
 
 groq:
     api-key: ${GROQ_API_KEY:}
@@ -96,6 +98,7 @@ smartbite:
       groq-api-key: ${groq.api-key}
       gemini-base-url: ${gemini.base-url}
       gemini-api-key: ${gemini.api-key}
+      gemini-model: ${gemini.model}
       prompt-version: suggest-v2.2
       recipe-prompt-version: recipe-v2.2
     places:

@@ -202,6 +202,23 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   tests, 0 failures. Staging (`986088e`, Postgres stores), free account: "Chicken Chettinad" (6 steps) and "Goan
   Fish Curry" (9 steps) loaded on the first try, each showing 2 steps and the Premium lock.
 
+## <a id="be-bug-014"></a>BE-BUG-014: the Gemini fallback always failed (model not available, 404)
+
+- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge and the Groq-key test)
+- **Evidence:** staging, 2026-10-17 13:41Z, with `GROQ_API_KEY` deliberately wrong: v1 returned 502 in 1.9 s.
+  Log: `v1 provider gemini-flash-lite failed status=404`. Google's deprecations page (checked 2026-10-17):
+  `gemini-2.5-flash-lite` is not retired, but access is limited to projects that used 2.5 models before; it
+  recommends `gemini-3.5-flash-lite` for new projects.
+- **Impact:** no AI fallback. Any Groq outage, rate limit or key problem would fail every v1 and v2 request, even
+  though Gemini is configured.
+- **Resolution:** the Gemini model is a setting, `GEMINI_MODEL`, default `gemini-3.5-flash-lite` (stable, no
+  shutdown date), used by v1 (`AIModelService`) and v2 (`AiConfig`). A future model change is an environment
+  variable, not a release. Cost: $0.30 / $2.50 per 1M input / output tokens instead of $0.10 / $0.40, only when
+  Groq fails (COSTS.md).
+- **Verification:** `V1GoldenContractTest` and `SuggestionEndpointTest` send the configured model; `./mvnw -B verify`
+  218 tests, 0 failures. **Outstanding:** repeat the staging test (wrong Groq key → v1 and v2 answer through Gemini).
+  Gemini 3 models always reason, which may use part of `max_tokens`; check that a recipe still parses.
+
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
 - **Status:** Done (test-only; production code unaffected)

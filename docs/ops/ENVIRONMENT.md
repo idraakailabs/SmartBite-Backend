@@ -37,6 +37,7 @@ the "staging" and "production" columns are defaults or examples, not secrets.
 | `SPRING_PROFILES_ACTIVE` | **yes** | no | *(none: base config only)* | `staging` | `prod` | Profile selection. Unset, the staging/prod overrides (structured logs, Firestore prefix, fake-token ban) don't apply |
 | `PORT` | no | no | `8080` | set by Render | set by Render | `server.port` |
 | `GEMINI_API_KEY` | **yes** | **yes** | *(none: startup fails)* | staging key | production key | AI provider (v1 and v2). Rotate after the Remote Config keys are removed (TECH-001) |
+| `GEMINI_MODEL` | no | no | `gemini-3.5-flash-lite` | default | default | Gemini model for v1 and v2 (the fallback after Groq). `gemini-2.5-flash-lite` returns 404 for projects that never used 2.5 models (BE-BUG-014) |
 | `GROQ_API_KEY` | recommended | **yes** | empty (Groq models skipped) | staging key | production key | AI provider (v1 and v2). Rotate as above |
 | `FIREBASE_SERVICE_ACCOUNT_BASE64` | **yes** | **yes** | empty | base64 of the service-account JSON | same | Admin SDK: ID-token verification, Firestore, Remote Config template read |
 | `FIREBASE_PROJECT_ID` | **yes** | no | empty | project id | project id | Expected token audience; checked against the service account |

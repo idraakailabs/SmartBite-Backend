@@ -10,6 +10,7 @@ import com.idraak.smartbite.exception.AiServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -103,10 +104,11 @@ public class AIModelService {
     public AIModelService(
             RestClient geminiRestClient,
             RestClient groqRestClient,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${gemini.model}") String geminiModel) {
         this.providers = List.of(
             new Provider("groq-gpt-oss-120b", "openai/gpt-oss-120b",   groqRestClient),
-            new Provider("gemini-flash-lite", "gemini-2.5-flash-lite", geminiRestClient),
+            new Provider("gemini-flash-lite", geminiModel,             geminiRestClient),
             new Provider("groq-gpt-oss-20b",  "openai/gpt-oss-20b",    groqRestClient)
         );
         this.objectMapper = objectMapper;

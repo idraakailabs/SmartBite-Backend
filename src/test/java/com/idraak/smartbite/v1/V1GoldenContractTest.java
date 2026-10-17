@@ -102,7 +102,7 @@ class V1GoldenContractTest {
         JSONAssert.assertEquals(read("response.json"), body(result), JSONCompareMode.STRICT);
         gemini.verify(1, postRequestedFor(urlEqualTo("/chat/completions"))
                 .withHeader("Authorization", equalTo("Bearer test-gemini-key"))
-                .withRequestBody(matchingJsonPath("$.model", equalTo("gemini-2.5-flash-lite"))));
+                .withRequestBody(matchingJsonPath("$.model", equalTo("gemini-3.5-flash-lite"))));
     }
 
     @Test
