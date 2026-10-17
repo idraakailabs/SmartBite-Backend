@@ -148,6 +148,9 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
    vegan: all of those plus eggs, dairy, ghee, honey). Also drop disliked foods, `recent_suggestions` and
    `session_excluded_dishes` matches. If fewer than 3 remain, regenerate once; then return what's left (1–3). Zero →
    `502 GENERATION_FAILED`, no quota used.
+   - **Anywhere with chosen cuisines** (BE-BUG-009): the cuisines in `refine.cuisine` (comma-separated) are
+     required. Picks of another cuisine are dropped and regenerated like the filters above. Only if none matches
+     are the off-cuisine picks returned, with `meta.degraded = true`.
 8. Area verification and ranking (§7). 9. Compute reasons (below). 10. Commit quota → respond.
 
 **Deadlines:** the whole request has a 25 s budget. Per AI attempt: connect 3 s, read 15 s, and no new attempt

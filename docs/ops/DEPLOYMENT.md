@@ -11,15 +11,22 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 
 | Area | State |
 |---|---|
-| Code (`branch-01/v2-api`) | v1 kept compatible (golden test), v2 complete. `./mvnw -B verify`: 162 tests pass, 11 Firestore emulator tests skipped there and run separately (11/11 pass) |
+| Code | `staging` (`ff17a40`) is deployed to staging. `branch-03/pre-production` adds the pre-production fixes (BE-BUG-007, -009, -011) and isn't merged yet. `./mvnw -B verify`: 213 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
-| Docker image | **Not built yet.** Docker needs WSL2, which is off on the development machine. Render's build on the first deploy is the first real image build |
-| Real providers (Groq, Gemini, Firebase, RevenueCat, Remote Config) | **Not exercised.** No secrets exist outside Render. First checked on staging (§9.2) |
-| Client IP behind Render's proxy | **Unverified assumption** (one proxy hop in `X-Forwarded-For`). Checked on staging before production (§9.2 step 5) |
-| Firestore security rules | **Not in this repository.** Must deny clients access to the server collections (§7.3) |
+| Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
+| Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |
+| Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
+| Client IP behind Render's proxy | One machine counts as one client, and a spoofed header doesn't bypass the limit (staging). **The second-network check is outstanding** (§9.2 step 5) |
+| Firestore security rules | **Not in this repository.** The current console rules refer to an undefined `userId`; replace them with §7.3 |
 
-**Blockers before production:** the secrets (§7), a successful staging round (§9.2), and the Firestore rules
-check (§7.3). There are no code blockers.
+**Blockers before production:**
+- `branch-03/pre-production` merged into `staging`, then the staging checks: §9.2 steps 3, 5b, 6 and 8, and §15.2
+  step 5
+- the Firestore rules (§7.3)
+- before turning D-024 on in production only: the $6 database, the hosted privacy policy and the Play Data safety
+  form (§15.3)
+
+There are no known code blockers.
 
 ## 1. What runs
 
@@ -28,9 +35,11 @@ check (§7.3). There are no code blockers.
   - `/api/v2/**`: authenticated with Firebase ID tokens
   - `/actuator/health`: the health check
   - `/`: a plain text reply, kept for whatever monitor already calls it
-- **No SQL database, so no schema migrations.** Durable state (quota counters, caches, reports, deletion retries)
-  lives in **Firestore** through the Firebase Admin SDK. Collections are created on first write; the queries
+- **Firestore** holds the server's durable state (quota counters, caches, reports, deletion retries) through the
+  Firebase Admin SDK, unless `SMARTBITE_STORES_MODE=postgres`. Collections are created on first write; the queries
   need only Firestore's automatic single-field indexes.
+- **PostgreSQL (optional, D-024):** with `DATABASE_URL` set, user history and profiles live in a Render Postgres
+  database. Flyway applies the migrations at startup (§15).
 - **Outbound calls:**
   - Groq and Gemini (AI)
   - Firebase Auth, Firestore and Remote Config (Google)
@@ -271,6 +280,19 @@ Created by the owner from the Blueprint, and Live. Checks run from the developme
 | One real v1 request (`golden/v1/request.json`) | 200 in 3.1 s, 3 suggestions: the AI keys work (Groq first) |
 | **Outstanding** | A request from a second network during an exhausted window (step 5b); the startup log check (step 3); memory (step 8); the app on staging (step 6) |
 
+**Round 2: 2026-10-16, commit `ff17a40` (D-024).** The owner merged `branch-02/user-history` into `staging` and
+set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixel 6a with a test account:
+
+| Check | Result |
+|---|---|
+| Sign-in, server quota, picks | Work, until the free sets were used. Found BE-BUG-008 (recipes) and BE-BUG-009 (cuisine) |
+| Profile, for an account with no profile anywhere | `GET /api/v2/me/profile` 404, onboarding, then `PUT` 200 |
+| Device token | `PUT /api/v2/me/device` 204 |
+| History | `GET /api/v2/me/history` 200; the sync worker succeeded |
+| History upload (checked 2026-10-17 on the phone) | The app's outbox for the account is empty, the initial upload is marked done and a sync cursor is saved, with a meal logged on 2026-10-16. The app clears its outbox only after a successful push, so the meal reached the server. The `meal_history` row itself hasn't been looked at |
+| Re-check 2026-10-17 (still `ff17a40`) | Cook at home picks 200 in 9.8 s (3 Pakistani dishes, quota `used` 2 of 3); v1 golden request 200 in 3.2 s; `/api/v2/me/history` without a token 401; a malformed v1 body still 500 with parser text (fixed on `branch-03/pre-production`, not deployed) |
+| **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
+
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.
    - **Expect:** the build succeeds (the first real Docker build) and the deploy turns "Live".
 2. **Health:** `curl -s https://<staging>/actuator/health` → `{"groups":["liveness","readiness"],"status":"UP"}`.
@@ -372,15 +394,19 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 
 **Before staging**
 - [ ] Billing: Pro plan active; note the existing service's instance type and region.
-- [ ] Push `branch-01/v2-api` and `staging` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
-- [ ] Create the secrets (§7.1, §7.2) and generate a `LOG_UID_HASH_KEY` for each environment.
-- [ ] Check the Firestore rules (§7.3).
+- [x] Push the feature branches and `staging` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
+- [x] Create the secrets (§7.1, §7.2) and generate a `LOG_UID_HASH_KEY` for each environment.
+- [ ] Check the Firestore rules (§7.3). The current console rules refer to an undefined `userId`.
 
 **Staging round**
-- [ ] New → Blueprint → `deploy/render-staging.yaml`; enter the six secrets.
-- [ ] Run §9.2 steps 1–8, including the client-IP test (step 5).
-- [ ] Debug app: `SMARTBITE_STAGING_API_URL`, the Remote Config condition (§7.4), a test account.
-- [ ] Suspend or delete the staging service.
+- [x] New → Blueprint → `deploy/render-staging.yaml`; enter the six secrets (2026-10-16).
+- [ ] Run §9.2 steps 1–8, including the client-IP test (step 5). Done: 1, 2, 4, 5a, 5c, 7. Outstanding: 3, 5b, 6, 8.
+- [x] Debug app: `SMARTBITE_STAGING_API_URL`, the Remote Config condition (§7.4), a test account.
+- [x] D-024: `DATABASE_URL` on staging and the debug-app condition for `backend_user_data_enabled` (§15.2 steps 1–4).
+- [ ] D-024 checks (§15.2 step 5).
+- [ ] Merge `branch-03/pre-production` into `staging` and repeat the affected checks: a recipe, Anywhere with one
+  cuisine, a v1 request.
+- [ ] Suspend or delete the staging service when testing ends.
 
 **Production**
 - [ ] Existing service: Auto-Deploy **off**, Standard instance, 60 s shutdown delay.
@@ -397,7 +423,8 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 
 ## 15. User data on our database (D-024): staging and production
 
-**Built on `branch-02/user-history` (backend) and `branch-13/user-history` (Android), 2026-10-16. Not deployed.**
+**Built on `branch-02/user-history` (backend) and `branch-13/user-history` (Android), 2026-10-16. Deployed to
+staging with `smartbite-db` (round 2 in §9.2); not in production.**
 Everything is off until you set `DATABASE_URL` and turn on two Remote Config keys, so merging changes nothing for
 users by itself.
 

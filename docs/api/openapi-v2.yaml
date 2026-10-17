@@ -1505,7 +1505,7 @@ components:
       properties:
         prompt_version:
           type: string
-          examples: [suggest-v2.1]
+          examples: [suggest-v2.2]
         degraded:
           type: boolean
           description: True when a fallback AI provider produced the set.
@@ -2199,7 +2199,7 @@ components:
           timezone: Asia/Karachi
           reset_at: '2026-10-11T19:00:00Z'
         meta:
-          prompt_version: suggest-v2.1
+          prompt_version: suggest-v2.2
           degraded: false
           idempotent_replay: false
 

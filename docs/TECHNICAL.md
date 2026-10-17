@@ -156,7 +156,8 @@ Shutdown is graceful (`server.shutdown: graceful`, 45 s per phase).
 
 - `./mvnw -B verify` builds `target/smartbite-0.0.1-SNAPSHOT.jar`.
 - `Dockerfile`: a Maven build stage (dependencies in their own layer), then a JRE 21 runtime as a non-root user
-  with `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`. It hasn't been built locally: Docker needs WSL2,
-  which is off on the development machine ([BE-014](ROADMAP.md#be-014)).
+  with `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`. Render builds it on every staging deploy
+  ([BE-014](ROADMAP.md#be-014)). It isn't built locally, because Docker needs WSL2, which is off on the
+  development machine.
 - Deploy plan, rollback and the owner's inputs: [ops/ENVIRONMENT.md §3–4](ops/ENVIRONMENT.md). Nothing has
   been deployed from `branch-01/v2-api`.

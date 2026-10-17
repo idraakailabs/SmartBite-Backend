@@ -19,6 +19,8 @@ import java.util.List;
 /**
  * Prompt -> provider chain -> parse -> safety filters (diet, dislikes, recent, excluded). If fewer than 3 remain,
  * regenerates once excluding what was dropped, then returns 1 to 3 safe candidates. Zero -> GENERATION_FAILED.
+ * Cuisines chosen for an Anywhere set are required (BE-BUG-009); only if no candidate matches them are
+ * off-cuisine but otherwise safe candidates returned, marked degraded, rather than failing the set.
  */
 public class SuggestionGenerator {
 
@@ -41,6 +43,7 @@ public class SuggestionGenerator {
     public Output generate(MealSuggestionRequest r, Diet diet, SpiceLevel spice, MealSlot slot, LocalDate today, Deadline deadline) {
         List<Candidate> kept = new ArrayList<>();
         List<String> dropped = new ArrayList<>();
+        List<Candidate> offCuisine = new ArrayList<>();
         boolean degraded = false;
         for (int round = 0; round < 2 && kept.size() < WANTED; round++) {
             if (round == 1 && !deadline.hasAtLeast(java.time.Duration.ofSeconds(5))) break;
@@ -61,10 +64,19 @@ public class SuggestionGenerator {
                 if (reason == null) {
                     kept.add(c);
                 } else {
+                    if (reason.equals("cuisine")) offCuisine.add(c);
                     dropped.add(c.name());
                     log.info("suggestion dropped reason={}", reason);
                 }
             }
+        }
+        if (kept.isEmpty() && !offCuisine.isEmpty()) {
+            log.info("suggestion set has no pick in the required cuisines; returning off-cuisine picks");
+            List<Candidate> fallback = new ArrayList<>();
+            for (Candidate c : offCuisine) {
+                if (fallback.size() < WANTED && fallback.stream().noneMatch(k -> Text.sameDish(k.name(), c.name()))) fallback.add(c);
+            }
+            return new Output(List.copyOf(fallback), true);
         }
         if (kept.isEmpty()) throw new ApiException(ErrorCode.GENERATION_FAILED);
         return new Output(List.copyOf(kept), degraded);
@@ -80,6 +92,14 @@ public class SuggestionGenerator {
         for (String s : r.recentSuggestionsOrEmpty()) if (Text.sameDish(s, c.name())) return "recent";
         for (String s : r.sessionExcludedOrEmpty()) if (Text.sameDish(s, c.name())) return "excluded";
         for (Candidate k : kept) if (Text.sameDish(k.name(), c.name())) return "duplicate";
+        List<String> required = r.requiredCuisines();
+        if (!required.isEmpty() && required.stream().noneMatch(want -> matchesCuisine(c, want))) return "cuisine";
         return null;
+    }
+
+    /** "Turkish" matches a cuisine of "Turkish", "Turkish (Anatolian)" or "Ottoman Turkish", or a region naming it. */
+    static boolean matchesCuisine(Candidate c, String wanted) {
+        String origin = c.cuisine() + " | " + (c.region() == null ? "" : c.region());
+        return Text.containsPhrase(origin, wanted) || Text.containsPhrase(wanted, c.cuisine());
     }
 }

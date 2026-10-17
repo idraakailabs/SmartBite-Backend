@@ -73,7 +73,31 @@ class RecipeParserTest {
                 {"difficulty":"easy","ingredient_groups":[{"items":[{"item":"Rice"}]}]}
                 """, Diet.NON_VEGETARIAN))
                 .isInstanceOf(UnusableOutputException.class)
-                .hasMessage("recipe missing steps, total time");
+                .hasMessage("recipe missing steps, total time (fields: difficulty,ingredient_groups; first step: none)");
+    }
+
+    @Test
+    void stepsUnderOtherNamesAreAccepted() {
+        // Staging, 2026-10-17: groq-gpt-oss-20b answered with ingredients and times but "recipe missing steps".
+        String base = """
+                {"times":{"total_minutes":60},"ingredient_groups":[{"items":[{"item":"Rice"}]}],%s}""";
+        assertThat(parse(base.formatted("\"instructions\":[\"Soak the rice.\",\"Layer and steam.\"]"), Diet.NON_VEGETARIAN).steps())
+                .extracting(Recipe.Step::instruction).containsExactly("Soak the rice.", "Layer and steam.");
+        assertThat(parse(base.formatted("\"steps\":[{\"step\":1,\"text\":\"Soak the rice.\"},{\"description\":\"Steam.\"}]"), Diet.NON_VEGETARIAN).steps())
+                .extracting(Recipe.Step::instruction).containsExactly("Soak the rice.", "Steam.");
+        assertThat(parse(base.formatted("\"method\":{\"1\":\"Soak the rice.\",\"2\":\"Steam.\"}"), Diet.NON_VEGETARIAN).steps())
+                .extracting(Recipe.Step::number).containsExactly(1, 2);
+    }
+
+    @Test
+    void anUnknownStepShapeIsDescribedWithoutTheRecipeText() {
+        assertThatThrownBy(() -> parse("""
+                {"times":{"total_minutes":60},"ingredient_groups":[{"items":[{"item":"Rice"}]}],
+                 "steps":[{"order":1,"what_to_do":"Secret family method"}]}
+                """, Diet.NON_VEGETARIAN))
+                .isInstanceOf(UnusableOutputException.class)
+                .hasMessage("recipe missing steps (fields: times,ingredient_groups,steps; first step: order,what_to_do)")
+                .hasMessageNotContaining("Secret");
     }
 
     @Test

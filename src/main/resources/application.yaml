@@ -96,7 +96,7 @@ smartbite:
       groq-api-key: ${groq.api-key}
       gemini-base-url: ${gemini.base-url}
       gemini-api-key: ${gemini.api-key}
-      prompt-version: suggest-v2.1
+      prompt-version: suggest-v2.2
       recipe-prompt-version: recipe-v2.1
     places:
       provider: ${PLACES_PROVIDER:disabled}

@@ -21,12 +21,17 @@ class RevenueCatClientTest {
     void start() {
         rc = new WireMockServer(WireMockConfiguration.options().dynamicPort().http2PlainDisabled(true));
         rc.start();
-        client = new RevenueCatClient(rc.baseUrl(), "sk_test_dummy", "proj1", "smartbite_pro",
-                Duration.ofSeconds(2), Duration.ofSeconds(1));
+        // A generous read timeout, so a busy machine doesn't fail the tests (BE-BUG-011). The timeout test uses
+        // its own client with a short one.
+        client = client(Duration.ofSeconds(10));
         rc.stubFor(get(urlPathEqualTo("/projects/proj1/entitlements")).willReturn(okJson("""
                 {"object":"list","items":[
                   {"object":"entitlement","id":"entlOther","lookup_key":"other"},
                   {"object":"entitlement","id":"entlPro123","lookup_key":"smartbite_pro"}]}""")));
+    }
+
+    RevenueCatClient client(Duration readTimeout) {
+        return new RevenueCatClient(rc.baseUrl(), "sk_test_dummy", "proj1", "smartbite_pro", Duration.ofSeconds(5), readTimeout);
     }
 
     @AfterEach
@@ -57,9 +62,10 @@ class RevenueCatClientTest {
     @Test
     void serverErrorsAndTimeoutsAreUnavailable() {
         rc.stubFor(get("/projects/proj1/customers/uid-4").willReturn(aResponse().withStatus(503)));
-        rc.stubFor(get("/projects/proj1/customers/uid-5").willReturn(okJson("{}").withFixedDelay(2_000)));
+        rc.stubFor(get("/projects/proj1/customers/uid-5").willReturn(okJson("{}").withFixedDelay(3_000)));
         assertThatThrownBy(() -> client.isPremium("uid-4")).isInstanceOf(EntitlementUnavailableException.class);
-        assertThatThrownBy(() -> client.isPremium("uid-5")).isInstanceOf(EntitlementUnavailableException.class);
+        RevenueCatClient impatient = client(Duration.ofMillis(500));
+        assertThatThrownBy(() -> impatient.isPremium("uid-5")).isInstanceOf(EntitlementUnavailableException.class);
     }
 
     @Test

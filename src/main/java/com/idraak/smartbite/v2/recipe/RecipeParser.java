@@ -62,9 +62,10 @@ final class RecipeParser {
         }
 
         List<Recipe.Step> steps = new ArrayList<>();
-        for (JsonNode s : root.path("steps")) {
+        JsonNode stepList = firstContainer(root, STEP_LISTS);
+        for (JsonNode s : stepList) {
             // A step is an object, or a plain string when the model simplifies the schema.
-            String instruction = s.isString() ? clip(s.asString(), 400) : text(s, "instruction", 400);
+            String instruction = s.isString() ? clip(s.asString(), 400) : firstText(s, STEP_TEXTS, 400);
             if (instruction == null) continue;
             List<String> keys = new ArrayList<>();
             for (JsonNode k : s.path("key_quantities")) {
@@ -90,7 +91,10 @@ final class RecipeParser {
             if (log.isDebugEnabled()) {
                 log.debug("unusable recipe output (first 2000 chars): {}", content.length() > 2000 ? content.substring(0, 2000) : content);
             }
-            throw new UnusableOutputException("recipe missing " + String.join(", ", missing));
+            // Field names only (no recipe text), so an unknown shape can be diagnosed from the WARN line.
+            String shape = " (fields: " + fieldNames(root) + "; first step: "
+                    + (stepList.isEmpty() ? "none" : fieldNames(stepList.iterator().next())) + ")";
+            throw new UnusableOutputException("recipe missing " + String.join(", ", missing) + shape);
         }
         if (difficulty == null) difficulty = Difficulty.MEDIUM;
         if (requiredDiet != null && requiredDiet != Diet.NON_VEGETARIAN) {
@@ -186,6 +190,33 @@ final class RecipeParser {
             return m.find() ? Integer.parseInt(m.group(1)) : null;
         }
         return null;
+    }
+
+    /** Where models put the steps, and the text of one step, besides the schema's own names (BE-BUG-008). */
+    private static final List<String> STEP_LISTS = List.of("steps", "instructions", "method", "directions", "preparation");
+    private static final List<String> STEP_TEXTS = List.of("instruction", "text", "description", "step", "details", "content", "action");
+
+    private static JsonNode firstContainer(JsonNode root, List<String> names) {
+        for (String name : names) {
+            JsonNode n = root.path(name);
+            if ((n.isArray() || n.isObject()) && !n.isEmpty()) return n;
+        }
+        return root.path("steps");
+    }
+
+    private static String firstText(JsonNode n, List<String> names, int max) {
+        for (String name : names) {
+            String s = text(n, name, max);
+            if (s != null) return s;
+        }
+        return null;
+    }
+
+    private static String fieldNames(JsonNode n) {
+        if (n.isString()) return "string";
+        if (!n.isObject()) return n.getNodeType().name().toLowerCase();
+        List<String> names = new ArrayList<>(n.propertyNames());
+        return names.size() > 12 ? String.join(",", names.subList(0, 12)) + ",…" : String.join(",", names);
     }
 
     private static JsonNode readObject(String content, ObjectMapper mapper) {

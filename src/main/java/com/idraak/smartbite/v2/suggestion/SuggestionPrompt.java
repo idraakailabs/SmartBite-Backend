@@ -27,7 +27,9 @@ public final class SuggestionPrompt {
             3. Never suggest anything listed in avoid_foods, recent_suggestions or excluded_dishes.
             4. Never mention calories, weight, nutrition targets, health claims or medical advice.
             5. Describe each dish in its own culinary tradition (its real cuisine and regional style).
-            6. Reply in English with ONLY one JSON object, no markdown, in exactly this shape:
+            6. If required_cuisines is in the user data, every dish must belong to one of those cuisines, whatever
+               favourite_cuisines or the history say.
+            7. Reply in English with ONLY one JSON object, no markdown, in exactly this shape:
             {"suggestions":[{"name":string,"short_description":string (max 200 chars),
             "category":one of [biryani_rice,curry_karahi,grill_kebab,bread_paratha,daal_lentils,soup,salad_bowl,noodles_pasta,pizza,sandwich_burger,street_food,breakfast_eggs,dessert,drink,other],
             "origin":{"cuisine":string,"region":string or null},
@@ -77,6 +79,8 @@ public final class SuggestionPrompt {
         if (refine.isVegetarianToday()) tweaks.add("vegetarian today");
         if (refine.isBudgetFriendly()) tweaks.add("everyday, budget-friendly dishes");
         if (refine.cuisine() != null) tweaks.add("cuisine or country: " + refine.cuisine());
+        List<String> required = r.requiredCuisines();
+        if (!required.isEmpty()) strings(data.putArray("required_cuisines"), required);
         strings(data.putArray("recent_suggestions"), r.recentSuggestionsOrEmpty());
         List<String> excluded = new java.util.ArrayList<>(r.sessionExcludedOrEmpty());
         excluded.addAll(extraExclusions);

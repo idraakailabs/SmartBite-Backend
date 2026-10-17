@@ -105,6 +105,55 @@ class V1GoldenContractTest {
     }
 
     @Test
+    void falls_back_on_an_invalid_key_and_on_an_unusable_answer() throws Exception {
+        // BE-BUG-007: a 401 from Groq used to fail v1 even though Gemini worked.
+        // Groq's large model: invalid key. Gemini: an answer that isn't JSON. Groq's small model: a good answer.
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions")
+                .withRequestBody(matchingJsonPath("$.model", equalTo("openai/gpt-oss-120b")))
+                .willReturn(aResponse().withStatus(401).withBody("{\"error\":{\"message\":\"Invalid API Key\"}}")));
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions")
+                .withRequestBody(matchingJsonPath("$.model", equalTo("openai/gpt-oss-20b")))
+                .willReturn(okJson(chatCompletion(read("provider-content.json")))));
+        gemini.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").willReturn(okJson(chatCompletion("not json at all"))));
+
+        MvcResult result = mvc.perform(post("/api/v1/meal-suggestions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(read("request.json")))
+                .andExpect(status().isOk())
+                .andReturn();
+        JSONAssert.assertEquals(read("response.json"), body(result), JSONCompareMode.STRICT);
+    }
+
+    @Test
+    void errorBodiesNeverIncludeProviderText() throws Exception {
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions")
+                .willReturn(aResponse().withStatus(401).withBody("{\"error\":{\"message\":\"Invalid API Key\"}}")));
+        gemini.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").willReturn(aResponse().withStatus(500)));
+
+        MvcResult result = mvc.perform(post("/api/v1/meal-suggestions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(read("request.json")))
+                .andExpect(status().isBadGateway())
+                .andReturn();
+        assertThat(body(result)).doesNotContainIgnoringCase("api key").doesNotContain("groq").doesNotContain("401");
+        groq.verify(2, postRequestedFor(urlEqualTo("/chat/completions")));    // gpt-oss-120b and gpt-oss-20b
+        gemini.verify(1, postRequestedFor(urlEqualTo("/chat/completions")));
+    }
+
+    @Test
+    void aMalformedBodyIs400WithoutParserText() throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/meal-suggestions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("42"))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        JSONObject json = new JSONObject(body(result));
+        assertThat(keys(json)).containsExactly("error", "message");
+        assertThat(json.getString("error")).isEqualTo("Invalid request body");
+        assertThat(body(result)).doesNotContain("JSON parse error");
+    }
+
+    @Test
     void validationErrorBodyShape() throws Exception {
         MvcResult result = mvc.perform(post("/api/v1/meal-suggestions")
                         .contentType(MediaType.APPLICATION_JSON)

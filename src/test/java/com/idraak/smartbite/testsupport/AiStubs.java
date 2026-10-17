@@ -25,6 +25,10 @@ public final class AiStubs {
             return new Dish(name, "non_vegetarian", true, false, false, "spicy", "Pakistani", protein, List.of(ingredients), 50, "medium", null);
         }
 
+        public Dish withCuisine(String newCuisine) {
+            return new Dish(name, diet, meat, egg, dairy, spice, newCuisine, protein, ingredients, minutes, difficulty, similarTo);
+        }
+
         public static Dish mislabelled(String name, String... ingredients) {
             return new Dish(name, "vegetarian", false, false, false, "medium", "Pakistani", null, List.of(ingredients), 30, "easy", null);
         }

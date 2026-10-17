@@ -116,20 +116,22 @@ public class AIModelService {
         String prompt = buildPrompt(request);
         Exception lastException = null;
 
+        // Any provider error or unusable answer moves on to the next provider (BE-BUG-007): an invalid or revoked
+        // key for one provider no longer takes v1 down. Timeouts still end the request (each one costs the full
+        // read timeout).
         for (Provider provider : providers) {
             try {
                 return callProvider(provider, prompt);
             } catch (RestClientResponseException e) {
-                if (e.getStatusCode().value() == 429) {
-                    log.warn("Rate limited on {}. Trying next provider.", provider.name());
-                    lastException = e;
-                } else {
-                    throw new AiServiceException("AI service error from " + provider.name() + ": " + e.getMessage(), e);
-                }
+                log.warn("v1 provider {} failed status={}; trying the next provider", provider.name(), e.getStatusCode().value());
+                lastException = e;
+            } catch (AiServiceException e) {
+                log.warn("v1 provider {} gave an unusable answer; trying the next provider", provider.name());
+                lastException = e;
             }
         }
 
-        throw new AiServiceException("All AI providers are rate limited", lastException);
+        throw new AiServiceException("All AI providers failed", lastException);
     }
 
     private MealResponse callProvider(Provider provider, String prompt) {

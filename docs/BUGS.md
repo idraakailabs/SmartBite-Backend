@@ -44,7 +44,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-005"></a>BE-BUG-005: the Docker image fixed the heap at 400 MB and ran as root
 
-- **Status:** Fixed – unverified (the Docker build itself hasn't run; see BE-014)
+- **Status:** Fixed – partly verified. Render built and runs the image (staging, 2026-10-16); the memory check
+  (DEPLOYMENT.md §9.2 step 8) is outstanding
 - **Evidence:** `ENTRYPOINT java -Xmx400m -Xms200m`, which wastes most of a 2 GB instance; no `USER`.
 - **Resolution:** 2026-10-16. `-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError`, a non-root user, and a
   dependency layer (`dependency:go-offline`). Graceful shutdown set explicitly (45 s).
@@ -64,7 +65,8 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-007"></a>BE-BUG-007: v1 errors include provider text, and v1 falls back only on HTTP 429
 
-- **Status:** Open (P2). v1 is frozen; a change needs owner approval (task BE-020).
+- **Status:** Fixed – unverified (2026-10-17, `branch-03/pre-production`; needs a staging run). Built after the
+  owner asked for every item to be completed before production (task BE-020).
 - **Evidence:** the local smoke test (2026-10-16) with an invalid Groq key returned
   `502 {"message":"AI service error from groq-gpt-oss-120b: 401 Unauthorized: …Invalid API Key…"}`. The raw
   provider error reaches the client, and v1 didn't try Gemini because it falls back only on 429.
@@ -75,10 +77,20 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 - **Also seen on staging (2026-10-16):** a malformed v1 body, such as a bare number instead of an object, returns
   `500 {"error":"Internal server error","message":"JSON parse error: …"}` instead of 400. The parser message
   also reaches the client. Same fix scope (BE-020).
+- **Resolution:** 2026-10-17.
+  - `AIModelService` moves on to the next provider after any provider HTTP error (not only 429) and after an
+    answer that isn't valid JSON. Timeouts still end the request, because each one costs the full read timeout.
+  - `GlobalExceptionHandler` returns fixed text: provider and parser messages are logged, never returned. A body
+    that isn't valid JSON is `400 {"error":"Invalid request body"}` instead of 500.
+  - Status codes and the `error` / `message` keys are unchanged. The app reads only the status code
+    (`MealSuggestionRepositoryImpl` maps it to `MealSuggestionError.Server`), and it never sends a malformed body.
+- **Verification:** `V1GoldenContractTest`: a 401 followed by an unusable answer still returns the golden
+  response; error bodies never include provider text; a bare number is 400. The existing golden and hardening tests
+  pass. **Outstanding:** a staging run.
 
 ## <a id="be-bug-008"></a>BE-BUG-008: every recipe was rejected on staging (the parser was too strict)
 
-- **Status:** Fixed – unverified (needs a staging run after the fix is merged into `staging`)
+- **Status:** Open: the parser fix is deployed, but recipes still fail on staging (2026-10-17)
 - **Evidence:** staging, 2026-10-16. `POST /api/v2/recipes` for "Mutton Biryani" returned
   `502 GENERATION_FAILED` twice. The log said
   `ai output unusable provider=groq-gpt-oss-20b reason=recipe missing ingredients, steps, difficulty or total time`.
@@ -96,10 +108,15 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   it).
 - **Verification:** `RecipeParserTest` (5); recipe endpoint, gate and contract tests; `./mvnw -B verify` 167 pass.
   **Outstanding:** a recipe loads on staging.
+- **Staging re-check (2026-10-17, `ff17a40`, with the fix):** not fixed yet. From the Pixel 6a, 2 of 3 recipe
+  requests failed with `502 GENERATION_FAILED` after 14–15 s (well inside the 40 s deadline, so providers answered
+  but the output was rejected); a retry of "Beef Biryani" returned 200 in 12.7 s. Request IDs `e10d6da2…`,
+  `220d3272…`, `85cef68a…`. The `ai output unusable … reason=` log lines are needed to find the cause. Suspected:
+  the Groq gpt-oss models spend part of `max_tokens` (4000) on reasoning, so a long recipe's JSON is cut off.
 
 ## <a id="be-bug-009"></a>BE-BUG-009: "Anywhere · Turkish" returned mostly Pakistani dishes
 
-- **Status:** Open (P2, quality)
+- **Status:** Fixed – unverified (2026-10-17, `branch-03/pre-production`, task BE-024; needs a staging check)
 - **Evidence:** staging, 2026-10-16, debug app, Anywhere with Turkish selected. The top pick was
   "Turkish Chicken Döner Wrap", but the alternatives were "Mutton Haleem" and "Chicken Handi" (Pakistani).
 - **Likely cause:** the prompt treats the chosen cuisine as a preference, not a requirement, for alternatives.
@@ -108,6 +125,16 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   non-matching picks in the parser (as the diet filter does).
 - **Acceptance criteria:** with one cuisine chosen, all three picks have that cuisine (unit test plus a staging
   check).
+- **Resolution:** 2026-10-17.
+  - For `intent: anywhere`, the cuisines in `refine.cuisine` (the app sends them comma-separated) go into the
+    prompt as `required_cuisines`, with a rule that every dish must belong to one of them.
+  - `SuggestionGenerator` drops picks whose `origin.cuisine` or region doesn't match (reason `cuisine`) and
+    regenerates once, as it does for the diet filter.
+  - Only if no pick matches at all are the off-cuisine (but otherwise safe) picks returned, with
+    `meta.degraded = true`, instead of failing the set.
+  - Other intents are unchanged. Prompt version `suggest-v2.2`.
+- **Verification:** `SuggestionEndpointTest` (new: off-cuisine picks are replaced; the fallback is marked
+  degraded; Cook at home doesn't require the cuisine). **Outstanding:** a staging check.
 
 ## <a id="be-bug-010"></a>BE-BUG-010: the deployed profiles ignored `SMARTBITE_STORES_MODE`
 
@@ -119,12 +146,16 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-011"></a>BE-BUG-011: `RevenueCatClientTest` can time out on a busy machine
 
-- **Status:** Open (P3, test only)
+- **Status:** Fixed – unverified (2026-10-17, `branch-03/pre-production`; the flake was seen once, so only more
+  full runs under load can confirm it)
 - **Evidence:** 2026-10-16. One full `./mvnw verify` run, while an Android build used the same CPU, failed
   `notPremiumForOtherEntitlementsOrUnknownCustomer` with "Error while extracting response" after about 2 s. The
   class passed on its own and in the next full run.
 - **Likely cause:** the client's short read timeout against WireMock under heavy load.
 - **Fix:** a longer read timeout in this test's configuration.
+- **Resolution:** 2026-10-17. The test's client uses a 10 s read timeout; the timeout case uses its own client with
+  500 ms against a 3 s delay.
+- **Verification:** `RevenueCatClientTest` 5/5, and a full `./mvnw -B verify` (213 tests, 0 failures).
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 

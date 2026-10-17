@@ -108,13 +108,65 @@ class SuggestionEndpointTest {
                 .andExpect(jsonPath("$.suggestions[0].reasons[*].evidence[0].source", everyItem(notNullValue())))
                 .andExpect(jsonPath("$.quota.used").value(1))
                 .andExpect(jsonPath("$.quota.remaining").value(2))
-                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.1"))
+                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.2"))
                 .andExpect(jsonPath("$.meta.degraded").value(false))
                 .andExpect(jsonPath("$..calories").doesNotExist());
         groq.verify(postRequestedFor(urlEqualTo("/chat/completions"))
                 .withRequestBody(matchingJsonPath("$.model", equalTo("openai/gpt-oss-120b")))
                 .withRequestBody(matchingJsonPath("$.response_format.type", equalTo("json_object")))
                 .withRequestBody(notContaining("daily_target")).withRequestBody(notContaining("BMR")));
+    }
+
+    static final String ANYWHERE_TURKISH = """
+            {"intent":"anywhere","timezone":"Asia/Karachi","area":{"city":"Lahore"},
+             "profile":{"diet":"non_vegetarian","top_cuisines":["Pakistani"]},"refine":{"cuisine":"Turkish"}}""";
+
+    @Test
+    void anywhereWithAChosenCuisineKeepsOnlyThatCuisine() throws Exception {
+        // BE-BUG-009: the taste profile (Pakistani) used to win over the chosen cuisine for the alternatives.
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").inScenario("cuisine")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(okJson(AiStubs.completion(AiStubs.suggestionsContent(
+                        Dish.meat("Chicken Doner Wrap", "Chicken", "Chicken", "Flatbread").withCuisine("Turkish"),
+                        Dish.meat("Mutton Haleem", "Mutton", "Mutton", "Wheat"),
+                        Dish.meat("Chicken Handi", "Chicken", "Chicken", "Cream")))))
+                .willSetStateTo("second"));
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").inScenario("cuisine")
+                .whenScenarioStateIs("second")
+                .willReturn(okJson(AiStubs.completion(AiStubs.suggestionsContent(
+                        Dish.meat("Lahmacun", "Beef", "Minced beef", "Flatbread").withCuisine("Turkish (Anatolian)"),
+                        Dish.meat("Iskender Kebab", "Lamb", "Lamb", "Yoghurt").withCuisine("Turkish"))))));
+
+        call("s-turk", ANYWHERE_TURKISH)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions", hasSize(3)))
+                .andExpect(jsonPath("$.suggestions[*].name", containsInAnyOrder("Chicken Doner Wrap", "Lahmacun", "Iskender Kebab")))
+                .andExpect(jsonPath("$.meta.degraded").value(false));
+        groq.verify(postRequestedFor(urlEqualTo("/chat/completions")).withRequestBody(containing("required_cuisines\\\":[\\\"Turkish")));
+    }
+
+    @Test
+    void offCuisinePicksAreReturnedOnlyWhenNothingMatches() throws Exception {
+        stubGroq(AiStubs.suggestionsContent(
+                Dish.meat("Mutton Haleem", "Mutton", "Mutton", "Wheat"),
+                Dish.meat("Chicken Handi", "Chicken", "Chicken", "Cream")));
+        call("s-turk2", ANYWHERE_TURKISH)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions", hasSize(2)))
+                .andExpect(jsonPath("$.meta.degraded").value(true));
+    }
+
+    @Test
+    void theChosenCuisineIsNotRequiredOutsideAnywhere() throws Exception {
+        stubGroq(AiStubs.suggestionsContent(
+                Dish.meat("Chicken Karahi", "Chicken", "Chicken", "Tomatoes"),
+                Dish.meat("Mutton Pulao", "Mutton", "Mutton", "Rice"),
+                Dish.veg("Daal Mash", "Urad daal", "Butter")));
+        String cook = CITY_COOK.formatted("non_vegetarian").replace("\"history\"", "\"refine\":{\"cuisine\":\"Turkish\"},\"history\"");
+        call("s-turk3", cook)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions", hasSize(3)));
+        groq.verify(1, postRequestedFor(urlEqualTo("/chat/completions")).withRequestBody(notContaining("required_cuisines\\\":[")));
     }
 
     @Test

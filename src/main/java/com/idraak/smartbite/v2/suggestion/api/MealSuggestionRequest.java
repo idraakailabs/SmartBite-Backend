@@ -49,6 +49,19 @@ public record MealSuggestionRequest(
         return sessionExcludedDishes == null ? List.of() : sessionExcludedDishes;
     }
 
+    /**
+     * Cuisines the user chose for an Anywhere set (the app sends them comma-separated in {@code refine.cuisine}).
+     * Every pick must match one (BE-BUG-009). Empty for other intents, where the cuisine stays a preference.
+     */
+    public List<String> requiredCuisines() {
+        if (intent != Intent.ANYWHERE || refine == null || refine.cuisine() == null) return List.of();
+        return java.util.Arrays.stream(refine.cuisine().split(","))
+                .map(String::strip)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
+    }
+
     public RefineOptions refineOrEmpty() {
         return refine == null ? new RefineOptions(null, null, null, null, null, null) : refine;
     }
