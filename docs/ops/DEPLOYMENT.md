@@ -306,6 +306,7 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 | Postgres stores complete, 2026-10-17 | Startup log `document store: postgres prefix='stg_'` and `database ready; migrations applied=0 schema_version=2` (BE-BUG-012 verified). Account deletion on Postgres: 200 `completed`, `quota_counter` deleted, `reports` anonymized (1), `user_data` deleted |
 | Gemini fallback, 2026-10-17 | With `GROQ_API_KEY` deliberately wrong, v1 returned 502: Gemini answered 404 (`gemini-2.5-flash-lite` isn't available to this project). Fixed with `GEMINI_MODEL`, default `gemini-3.5-flash-lite` (BE-BUG-014); repeat after the merge. Groq key restored, v1 200 |
 | Gemini fallback re-test, 2026-10-17 (`bad6d78`) | Groq key wrong: v1 200 (3.3 s), v2 picks 200 (`degraded: true`), a recipe 502 (`invalid JSON`: Gemini's reasoning used up `max_tokens`). Fixed on `branch-03` with reasoning head-room for Gemini; repeat the recipe after the merge. Groq key restored |
+| Gemini fallback complete, 2026-10-17 (`a65a810`) | With the Groq key wrong, a recipe came through Gemini (`attempt=2`, 4.7 s, 12 steps). Groq key restored and answering (`attempt=1`) |
 | **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
 
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.

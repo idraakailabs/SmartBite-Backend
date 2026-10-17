@@ -204,7 +204,7 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 
 ## <a id="be-bug-014"></a>BE-BUG-014: the Gemini fallback always failed (model not available, 404)
 
-- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge and the Groq-key test)
+- **Status:** Done (2026-10-17, verified on staging `a65a810`)
 - **Evidence:** staging, 2026-10-17 13:41Z, with `GROQ_API_KEY` deliberately wrong: v1 returned 502 in 1.9 s.
   Log: `v1 provider gemini-flash-lite failed status=404`. Google's deprecations page (checked 2026-10-17):
   `gemini-2.5-flash-lite` is not retired, but access is limited to projects that used 2.5 models before; it
@@ -224,7 +224,12 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   OpenAI-compatible endpoint the reasoning counts against `max_tokens` (4000 for a recipe), so the recipe JSON was
   cut off. Gemini gets 6000 extra tokens of head-room (`AiConfig.GEMINI_REASONING_TOKENS`); Groq is unchanged.
   A reply that ends with `finish_reason: length` now logs `ai output cut off provider=… max_tokens=…`. Tests:
-  `OpenAiCompatibleChatModelTest` (2). **Outstanding:** a recipe through Gemini on staging after the merge.
+  `OpenAiCompatibleChatModelTest` (2).
+- **Verification (staging, Groq key wrong):** `ai attempt ok provider=gemini-flash-lite attempt=2` for picks
+  (14:12:26Z, 2.2 s) and, after the head-room fix, at 14:19:55Z (4.7 s) for the "Mutton Karahi" recipe that had
+  failed at 14:13Z; it was on screen with 12 steps at 14:21Z. (The log line doesn't name the endpoint; matching it
+  to the recipe is inferred from the timing.) No `ai output cut off` lines. The Groq key was restored by 14:21:43Z
+  (`provider=groq-gpt-oss-120b attempt=1`).
 
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
