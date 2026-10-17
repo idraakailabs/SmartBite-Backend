@@ -111,8 +111,15 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
 - **Staging re-check (2026-10-17, `ff17a40`, with the fix):** not fixed yet. From the Pixel 6a, 2 of 3 recipe
   requests failed with `502 GENERATION_FAILED` after 14–15 s (well inside the 40 s deadline, so providers answered
   but the output was rejected); a retry of "Beef Biryani" returned 200 in 12.7 s. Request IDs `e10d6da2…`,
-  `220d3272…`, `85cef68a…`. The `ai output unusable … reason=` log lines are needed to find the cause. Suspected:
-  the Groq gpt-oss models spend part of `max_tokens` (4000) on reasoning, so a long recipe's JSON is cut off.
+  `220d3272…`, `85cef68a…`. The log for `85cef68a` (10:28:32Z) says
+  `ai output unusable provider=groq-gpt-oss-20b reason=recipe missing steps`: valid JSON with ingredients and a
+  time, but no steps where the parser looks (`steps[].instruction`).
+- **Second fix (2026-10-17, `branch-03/pre-production`):** steps are also read from `instructions`, `method`,
+  `directions` or `preparation` (an array, or an object keyed by number), and a step's text from `text`,
+  `description`, `step`, `details`, `content` or `action`. When something is still missing, the WARN reason lists
+  the field names the model used (never the recipe text), so the next unknown shape shows up in the log without
+  DEBUG. Tests: `RecipeParserTest` (7). **Outstanding:** the merge into `staging`, then a few recipes loading on
+  the first try.
 
 ## <a id="be-bug-009"></a>BE-BUG-009: "Anywhere · Turkish" returned mostly Pakistani dishes
 

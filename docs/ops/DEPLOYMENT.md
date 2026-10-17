@@ -11,7 +11,7 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 
 | Area | State |
 |---|---|
-| Code | `staging` (`ff17a40`) is deployed to staging. `branch-03/pre-production` adds the pre-production fixes (BE-BUG-007, -009, -011) and isn't merged yet. `./mvnw -B verify`: 213 tests pass, 11 Firestore emulator tests skipped there and run separately |
+| Code | `staging` (`ff17a40`) is deployed to staging. `branch-03/pre-production` adds the pre-production fixes (BE-BUG-007, -008, -009, -011) and isn't merged yet. `./mvnw -B verify`: 215 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |

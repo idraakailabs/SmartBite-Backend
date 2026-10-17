@@ -7,10 +7,10 @@ in the Android repository's `docs/`.
 
 | | |
 |---|---|
-| Branches | `staging` (`ff17a40`, v2 plus D-024) is deployed to `smartbite-api-staging` with the staging database connected. `branch-03/pre-production` holds the pre-production fixes (BE-BUG-007, -009, -011) and isn't merged into `staging` yet. `master` is still v1 in production |
+| Branches | `staging` (`ff17a40`, v2 plus D-024) is deployed to `smartbite-api-staging` with the staging database connected. `branch-03/pre-production` holds the pre-production fixes (BE-BUG-007, -008 second fix, -009, -011) and isn't merged into `staging` yet. `master` is still v1 in production |
 | Phase | Staging verification before the production deploy ([BE-015](#be-015)) |
 | Next task | Merge `branch-03/pre-production` into `staging`, then finish the staging checks: [BE-013](#be-013) (app on staging), [BE-019](#be-019) (second network), [BE-012](#be-012) (each provider once), [DEPLOYMENT.md](ops/DEPLOYMENT.md) §15.2 (history upload, second device, deletion) |
-| Last verified | 2026-10-17 (`branch-03/pre-production`): `./mvnw -B verify` 213 tests, 0 failures, 11 skipped (Firestore emulator tests, run separately). Staging rounds 1 and 2 (DEPLOYMENT.md §9.2) |
+| Last verified | 2026-10-17 (`branch-03/pre-production`): `./mvnw -B verify` 215 tests, 0 failures, 11 skipped (Firestore emulator tests, run separately). Staging rounds 1 and 2 (DEPLOYMENT.md §9.2) |
 
 ## Phase 2: v2 API (Revision 2)
 
