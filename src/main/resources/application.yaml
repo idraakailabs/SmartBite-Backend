@@ -97,7 +97,7 @@ smartbite:
       gemini-base-url: ${gemini.base-url}
       gemini-api-key: ${gemini.api-key}
       prompt-version: suggest-v2.2
-      recipe-prompt-version: recipe-v2.1
+      recipe-prompt-version: recipe-v2.2
     places:
       provider: ${PLACES_PROVIDER:disabled}
       api-key: ${GOOGLE_PLACES_API_KEY:}

@@ -27,13 +27,13 @@ class RecipeParserTest {
         RecipeParser.Parsed p = parse("""
                 {"diet_conflict":false,"difficulty":"medium","times":{"prep_minutes":15,"cook_minutes":35,"rest_minutes":0,"total_minutes":50},
                  "ingredient_groups":[{"title":"For the karahi","items":[{"item":"Chicken","display_quantity":"1 kg","quantity":1,"unit":"kg"}]}],
-                 "steps":[{"number":1,"instruction":"Heat the oil.","key_quantities":["3 tbsp oil"],"cook_minutes":2}]}
+                 "steps":[{"number":1,"instruction":"Heat the oil.","key_quantities":["3 tbsp oil"],"cook_minutes":2},{"number":2,"instruction":"Add the chicken."}]}
                 """, Diet.NON_VEGETARIAN);
 
         assertThat(p.difficulty()).isEqualTo(Difficulty.MEDIUM);
         assertThat(p.times().totalMinutes()).isEqualTo(50);
         assertThat(p.groups()).hasSize(1);
-        assertThat(p.steps()).extracting(Recipe.Step::instruction).containsExactly("Heat the oil.");
+        assertThat(p.steps()).extracting(Recipe.Step::instruction).containsExactly("Heat the oil.", "Add the chicken.");
     }
 
     @Test
@@ -60,7 +60,7 @@ class RecipeParserTest {
         RecipeParser.Parsed p = parse("""
                 {"times":{"prep_minutes":10,"cook_minutes":25,"rest_minutes":5},
                  "ingredient_groups":[{"items":[{"item":"Rice"}]}],
-                 "steps":[{"instruction":"Cook the rice."}]}
+                 "steps":[{"instruction":"Rinse the rice."},{"instruction":"Cook the rice."}]}
                 """, Diet.NON_VEGETARIAN);
 
         assertThat(p.times().totalMinutes()).isEqualTo(40);
@@ -90,6 +90,18 @@ class RecipeParserTest {
     }
 
     @Test
+    void aPartialMethodIsRejectedNotShownAsTheWholeRecipe() {
+        String base = """
+                {"times":{"total_minutes":60},"ingredient_groups":[{"items":[{"item":"Chicken"}]}],"steps":%s}""";
+        assertThatThrownBy(() -> parse(base.formatted("[{\"instruction\":\"Marinate the chicken.\"}]"), Diet.NON_VEGETARIAN))
+                .isInstanceOf(UnusableOutputException.class)
+                .hasMessageStartingWith("recipe missing steps (only 1)");
+        assertThatThrownBy(() -> parse(base.formatted("[{\"instruction\":\"Marinate.\"},{\"how\":\"Grill.\"},{\"instruction\":\"Simmer.\"}]"), Diet.NON_VEGETARIAN))
+                .isInstanceOf(UnusableOutputException.class)
+                .hasMessageStartingWith("recipe missing steps (1 of 3 unreadable)");
+    }
+
+    @Test
     void anUnknownStepShapeIsDescribedWithoutTheRecipeText() {
         assertThatThrownBy(() -> parse("""
                 {"times":{"total_minutes":60},"ingredient_groups":[{"items":[{"item":"Rice"}]}],
@@ -105,7 +117,7 @@ class RecipeParserTest {
         assertThatThrownBy(() -> parse("""
                 {"difficulty":"easy","times":{"total_minutes":30},
                  "ingredients":[{"item":"Chicken thighs"},{"item":"Onion"}],
-                 "steps":["Cook it."]}
+                 "steps":["Fry the onion.","Cook it."]}
                 """, Diet.VEGETARIAN))
                 .isInstanceOf(UnusableOutputException.class)
                 .hasMessage("recipe fails the diet check");

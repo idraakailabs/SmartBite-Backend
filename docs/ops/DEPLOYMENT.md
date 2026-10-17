@@ -11,7 +11,7 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 
 | Area | State |
 |---|---|
-| Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 217 tests pass, 11 Firestore emulator tests skipped there and run separately |
+| Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 218 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |
@@ -296,6 +296,7 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 | Client IP (step 5b), 2026-10-17 | With this PC kept over its limit (249 × 429), check-host.net nodes in Madrid, Mumbai, Warsaw and Moscow got through: each network is its own client (BE-BUG-006 closed). Their GET returned 500, which is now fixed to 405 on `branch-03/pre-production` (BE-BUG-007 note) |
 | Startup log (step 3), 2026-10-17 | `The following 1 profile is active: "staging"`; `remote config settings refreshed free_daily=3 recipe_gate=true` (the service account reads the template); `database ready; migrations applied=0 schema_version=null` (a logging bug, BE-BUG-012, fixed on `branch-03`); the only `ERROR` was the step-5b GET (fixed, BE-BUG-007 note) |
 | Memory (step 8), 2026-10-17 | About 16–18 % of the 2 GB limit (about 330–360 MB), flat across two deploys and the day's testing |
+| Postgres stores, 2026-10-17 | `SMARTBITE_STORES_MODE=postgres` on staging. Health UP, v1 200, v2 401 without a token; a new account's picks count in Postgres (`used 1 of 3`); a recipe 200 (but one step only: BE-BUG-013, fixed on `branch-03`); a report 201. The startup log now names the store (`document store: postgres prefix='stg_'`, after the merge) |
 | **Outstanding** | A second device; a recipe and a report; account deletion; the round-1 items |
 
 1. **Create the staging service from the Blueprint** (§4) and enter the secrets.

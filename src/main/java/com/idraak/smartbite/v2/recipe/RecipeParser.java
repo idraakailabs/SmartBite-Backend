@@ -62,11 +62,15 @@ final class RecipeParser {
         }
 
         List<Recipe.Step> steps = new ArrayList<>();
+        int unreadableSteps = 0;
         JsonNode stepList = firstContainer(root, STEP_LISTS);
         for (JsonNode s : stepList) {
             // A step is an object, or a plain string when the model simplifies the schema.
             String instruction = s.isString() ? clip(s.asString(), 400) : firstText(s, STEP_TEXTS, 400);
-            if (instruction == null) continue;
+            if (instruction == null) {
+                unreadableSteps++;
+                continue;
+            }
             List<String> keys = new ArrayList<>();
             for (JsonNode k : s.path("key_quantities")) {
                 if (k.isString() && keys.size() < 6) keys.add(clip(k.asString(), 40));
@@ -85,7 +89,11 @@ final class RecipeParser {
         }
         List<String> missing = new ArrayList<>();
         if (groups.isEmpty()) missing.add("ingredients");
+        // A partial method is worse than none: it would be cached and shown as the whole recipe (staging,
+        // 2026-10-17: a one-step Chicken Tikka Masala).
         if (steps.isEmpty()) missing.add("steps");
+        else if (unreadableSteps > 0) missing.add("steps (" + unreadableSteps + " of " + (steps.size() + unreadableSteps) + " unreadable)");
+        else if (steps.size() < MIN_STEPS) missing.add("steps (only " + steps.size() + ")");
         if (total == null) missing.add("total time");
         if (!missing.isEmpty()) {
             if (log.isDebugEnabled()) {
@@ -193,6 +201,7 @@ final class RecipeParser {
     }
 
     /** Where models put the steps, and the text of one step, besides the schema's own names (BE-BUG-008). */
+    static final int MIN_STEPS = 2;
     private static final List<String> STEP_LISTS = List.of("steps", "instructions", "method", "directions", "preparation");
     private static final List<String> STEP_TEXTS = List.of("instruction", "text", "description", "step", "details", "content", "action");
 

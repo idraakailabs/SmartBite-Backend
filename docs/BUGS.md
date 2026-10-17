@@ -186,6 +186,21 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   new database and `applied=0 schema_version=2` on the second start. **Outstanding:** the line on staging after the
   merge.
 
+## <a id="be-bug-013"></a>BE-BUG-013: a one-step recipe was accepted, cached and shown as the whole recipe
+
+- **Status:** Fixed – unverified on staging (2026-10-17, `branch-03/pre-production`; needs the merge)
+- **Evidence:** staging (`e35d551`, Postgres stores), 2026-10-17, Pixel 6a, free account: `POST /api/v2/recipes`
+  for "Chicken Tikka Masala" returned 200 with `total_steps: 1` (only "marinate the chicken"). The model either
+  wrote one step or wrote steps the lenient parser (BE-BUG-008) couldn't read and skipped silently.
+- **Impact:** an unusable recipe, cached for 30 days and served to everyone asking for the same dish.
+- **Resolution:**
+  - `RecipeParser` rejects a recipe with fewer than 2 steps, or with any step it can't read; the reason says which
+    (`recipe missing steps (only 1)`, `… (1 of 3 unreadable)`), and the chain tries the next provider.
+  - The recipe prompt version is now `recipe-v2.2`. It is part of the cache key, so recipes cached before the fix
+    are no longer served.
+- **Verification:** `RecipeParserTest.aPartialMethodIsRejectedNotShownAsTheWholeRecipe`; `./mvnw -B verify` 218
+  tests, 0 failures. **Outstanding:** recipes on staging after the merge.
+
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
 - **Status:** Done (test-only; production code unaffected)
