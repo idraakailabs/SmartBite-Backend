@@ -14,7 +14,8 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 220 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
-| Staging | **Live** (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g) with the Free `smartbite-db` connected (§15.2) |
+| Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). **Suspended by the owner on 2026-10-17** to save cost; resume it before further tests. The Free database expires about 30 days after it was created (around 2026-11-15) |
+| Production | **Deploy deferred by the owner (2026-10-17)** until the v2 app is nearer release. Plan: §10 (nine steps), then the custom domain (§16) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
 | Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
@@ -436,6 +437,29 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
 - [ ] A Google Places key and budget (`PLACES_PROVIDER=google`).
 - [ ] A custom domain.
+
+## 16. Custom API domain (Cloudflare), after the production deploy (BE-026)
+
+The owner bought a domain at Cloudflare (2026-10-17). Do this **after** §10 is verified, so a problem points at
+either the deploy or DNS, not both.
+
+1. Render → the production service → **Settings → Custom Domains** → add `api.<domain>`. Render shows the target
+   (the service's `….onrender.com` host).
+2. Cloudflare → DNS → add a **CNAME**: name `api`, target that host, **Proxy status: DNS only (grey cloud)**.
+3. Remove any **AAAA** record for `api` (Render doesn't support IPv6 yet).
+4. Wait for Render to show the certificate as issued (Custom Domains → Verify if needed), then check
+   `https://api.<domain>/actuator/health` → `UP`.
+5. Optionally the same for staging: `staging-api.<domain>` on smartbite-api-staging.
+
+**Keep the Cloudflare proxy off permanently.** `ClientIpResolver` trusts one proxy hop (Render's,
+`TRUSTED_PROXIES=1`, verified in BE-019). Behind Cloudflare's proxy every user would appear as a Cloudflare address
+and share one per-IP rate limit. Caching doesn't help this API, and Render already provides HTTPS. Turning the proxy
+on would first need `CF-Connecting-IP` support in `ClientIpResolver`.
+
+**Never remove the `onrender.com` address:** released apps call it directly. The v2 app release switches its
+production base URL to the new domain (Android TECH-020); older versions keep working.
+
+Source: [Render: Configuring Cloudflare DNS](https://render.com/docs/configure-cloudflare-dns) (checked 2026-10-17).
 
 ## 15. User data on our database (D-024): staging and production
 
