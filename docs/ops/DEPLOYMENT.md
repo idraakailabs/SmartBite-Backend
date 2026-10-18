@@ -14,7 +14,8 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 220 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
-| Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). **Suspended by the owner on 2026-10-17** to save cost; resume it before further tests. The Free database expires about 30 days after it was created (around 2026-11-15) |
+| Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). Suspended by the owner on 2026-10-17 and **running again on 2026-10-18** (custom domain
+`staging-api.smartbite.idraakai.org`, §16.2); suspend it again when the remaining checks are done. The Free database expires about 30 days after it was created (around 2026-11-15) |
 | Production | **Deploy deferred by the owner (2026-10-17)** until the v2 app is nearer release. Plan: §10 (nine steps). The custom domain `api.smartbite.idraakai.org` is **live** on the existing (v1) service (§16, verified 2026-10-18) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
@@ -437,7 +438,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
 - [ ] A Google Places key and budget (`PLACES_PROVIDER=google`).
 - [x] Custom domain `api.smartbite.idraakai.org` on the existing service (§16.1; verified 2026-10-18).
-- [ ] `staging-api.smartbite.idraakai.org` when staging is resumed (§16.2).
+- [x] `staging-api.smartbite.idraakai.org` on staging (§16.2; verified 2026-10-18).
 
 ## 16. Custom API domain (Cloudflare, `idraakai.org`) (BE-026)
 
@@ -479,15 +480,21 @@ CAA, no own AAAA). Retrying with the ↻ icon on the domain row issued it within
 - certificate `CN=api.smartbite.idraakai.org`, issued by Google Trust Services (WE1), valid to 2027-01-16; Render
   renews it automatically
 - `http://` → `301` to `https://`
-- Observed in public DNS: the production service runs in Render's **Oregon** region (`gcp-us-west1`), so the
-  production database (§15.3) must be created in Oregon
+- Correction (2026-10-18): the `gcp-us-west1` hostname in the DNS chain is Render's shared entry point, not the
+  service's region (staging, in Singapore, resolves to the same name). Read the production region from the
+  service's dashboard before creating the production database (§15.3)
 
 If a certificate shows an error while the DNS is right, retry it (↻) before changing anything.
 
-### 16.2 Staging, when it's resumed
+### 16.2 Staging
 The same steps on `smartbite-api-staging` with `staging-api.smartbite.idraakai.org` (Cloudflare name
-`staging-api.smartbite`). Check `https://staging-api.smartbite.idraakai.org/actuator/health` → `UP`. Resume staging
-before its Free database expires (around 2026-11-15).
+`staging-api.smartbite`). Check `https://staging-api.smartbite.idraakai.org/actuator/health` → `UP`.
+
+**Done 2026-10-18.** CNAME DNS only, to `smartbite-api-staging.onrender.com`. Certificate
+`CN=staging-api.smartbite.idraakai.org`, Google Trust Services (WE1), valid to 2027-01-16. `/actuator/health` →
+`200 UP` (same as the `onrender.com` host), `GET /api/v2/me/quota` without a token → `401`, `http://` → `301` to
+`https://`. Debug and staging app builds use it through `SMARTBITE_STAGING_API_URL` in the Android repo's
+`local.properties` (owner's machine).
 
 ### 16.3 Rules
 - **Keep the Cloudflare proxy off permanently.** `ClientIpResolver` trusts one proxy hop (Render's,
@@ -549,7 +556,7 @@ users by itself.
 
 ### 15.3 Production (owner, later, after the app release that contains this code)
 1. **Create the database:** a Render Postgres **0.1c-256mb ($6)**, 1 GB, **same region as the production
-   service** (Oregon, observed 2026-10-18, §16.1). Check **Recovery** (backups and point-in-time recovery).
+   service** (read the region on the production service's dashboard; DNS doesn't show it). Check **Recovery** (backups and point-in-time recovery).
 2. **Connect it:** on the production service, set `DATABASE_URL` to its Internal URL. That's a deploy; the
    migrations run at startup.
 3. **Release the app** (a Play update) with this code. Nothing changes for users yet.
