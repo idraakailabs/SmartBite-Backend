@@ -15,7 +15,7 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). **Suspended by the owner on 2026-10-17** to save cost; resume it before further tests. The Free database expires about 30 days after it was created (around 2026-11-15) |
-| Production | **Deploy deferred by the owner (2026-10-17)** until the v2 app is nearer release. Plan: §10 (nine steps), then the custom domain (§16) |
+| Production | **Deploy deferred by the owner (2026-10-17)** until the v2 app is nearer release. Plan: §10 (nine steps). The custom domain `api.smartbite.idraakai.org` is **live** on the existing (v1) service (§16, verified 2026-10-18) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
 | Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
@@ -65,7 +65,7 @@ There are no known code blockers.
 | Firestore (Google) | Likely within the free quota today | Each suggestion does a few reads and writes. The free tier is 50k reads and 20k writes per day *(verify on the Firebase pricing page and your project's plan)* |
 | AI providers (Groq, Gemini) | Per token, as today | Unchanged by this deploy |
 | Google Places | $0 | Stays `fake` or `disabled` until a key and budget exist (ENVIRONMENT.md §3) |
-| Custom domain (optional) | Included up to the plan's allowance; $0.25/month per extra domain | Recommended later (§12) |
+| Custom domain | Included up to the plan's allowance (15 on Pro); $0.25/month per extra domain | `api.smartbite.idraakai.org`, live (§16) |
 
 **Expected monthly total:** about $25 (Pro, already paid) plus about $25 (Standard production instance), plus a few
 dollars a month if a staging service runs a couple of days per release.
@@ -389,8 +389,8 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
   - Google Cloud: covers Firestore, and Places later
   - the AI provider dashboards
 - **Later:**
-  - A custom domain (e.g. `api.<your-domain>`) pointed at the service, with the app using it. Region moves and
-    provider changes then no longer need an app update.
+  - The app using the custom domain `api.smartbite.idraakai.org` (§16, Android TECH-020). Region moves and provider
+    changes then no longer need an app update.
   - The app update itself and a v1 sunset plan (D-021).
 
 ## 13. Troubleshooting
@@ -436,30 +436,70 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 **Afterwards (separate decisions)**
 - [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
 - [ ] A Google Places key and budget (`PLACES_PROVIDER=google`).
-- [ ] A custom domain.
+- [x] Custom domain `api.smartbite.idraakai.org` on the existing service (§16.1; verified 2026-10-18).
+- [ ] `staging-api.smartbite.idraakai.org` when staging is resumed (§16.2).
 
-## 16. Custom API domain (Cloudflare), after the production deploy (BE-026)
+## 16. Custom API domain (Cloudflare, `idraakai.org`) (BE-026)
 
-The owner bought a domain at Cloudflare (2026-10-17). Do this **after** §10 is verified, so a problem points at
-either the deploy or DNS, not both.
+The owner bought `idraakai.org` at Cloudflare (2026-10-17). **Owner decision 2026-10-18:** attach the production
+hostname **now, on the existing production service** (still v1), instead of waiting for §10. Nothing calls the new
+hostname until the v2 app ships, so current users are unaffected, and DNS and the certificate are proven before
+the deploy. A deploy problem and a DNS problem can't then be confused.
 
-1. Render → the production service → **Settings → Custom Domains** → add `api.<domain>`. Render shows the target
-   (the service's `….onrender.com` host).
-2. Cloudflare → DNS → add a **CNAME**: name `api`, target that host, **Proxy status: DNS only (grey cloud)**.
-3. Remove any **AAAA** record for `api` (Render doesn't support IPv6 yet).
-4. Wait for Render to show the certificate as issued (Custom Domains → Verify if needed), then check
-   `https://api.<domain>/actuator/health` → `UP`.
-5. Optionally the same for staging: `staging-api.<domain>` on smartbite-api-staging.
+**Hostnames (owner decision 2026-10-18).** Everything for SmartBite lives under `smartbite.idraakai.org`, so other
+Idraak apps can get their own names later:
 
-**Keep the Cloudflare proxy off permanently.** `ClientIpResolver` trusts one proxy hop (Render's,
-`TRUSTED_PROXIES=1`, verified in BE-019). Behind Cloudflare's proxy every user would appear as a Cloudflare address
-and share one per-IP rate limit. Caching doesn't help this API, and Render already provides HTTPS. Turning the proxy
-on would first need `CF-Connecting-IP` support in `ClientIpResolver`.
+| Hostname | Points at | When |
+|---|---|---|
+| `api.smartbite.idraakai.org` | Production service (`smartbite-backend-zsyr.onrender.com`) | Now |
+| `staging-api.smartbite.idraakai.org` | `smartbite-api-staging` (`smartbite-api-staging.onrender.com`) | When staging is resumed |
+| `smartbite.idraakai.org` | Reserved for a SmartBite website (hosted privacy policy, terms, Android app links). Not an API | Later, not part of this task |
 
-**Never remove the `onrender.com` address:** released apps call it directly. The v2 app release switches its
-production base URL to the new domain (Android TECH-020); older versions keep working.
+Custom domains are included in the Pro workspace plan (15 included; $0.25/month each beyond that).
 
-Source: [Render: Configuring Cloudflare DNS](https://render.com/docs/configure-cloudflare-dns) (checked 2026-10-17).
+### 16.1 Production, now (owner, in the dashboards)
+1. Render → the production service → **Settings → Custom Domains** → add `api.smartbite.idraakai.org`. Render shows
+   the target (the service's `….onrender.com` host).
+2. Cloudflare → `idraakai.org` → **DNS → Add record**: type **CNAME**, name `api.smartbite`, target that host,
+   **Proxy status: DNS only (grey cloud)**.
+3. Make sure there is no **AAAA** record for that name (Render serves IPv4 only). If the zone has **CAA** records,
+   allow `letsencrypt.org` and `pki.goog`; a new zone normally has none.
+4. Render → Custom Domains → **Verify**, and wait until the certificate shows as issued (usually minutes).
+5. Check. Production still runs v1, which has **no** `/actuator/health`, so compare the two hosts instead: both must
+   give the same status line.
+   ```bash
+   curl -sI https://api.smartbite.idraakai.org/
+   curl -sI https://smartbite-backend-zsyr.onrender.com/
+   ```
+   After the §10 cutover, also check `https://api.smartbite.idraakai.org/actuator/health` → `UP`.
+
+**Done 2026-10-18.** The first certificate attempt failed ("Certificate Error"; DNS was correct: CNAME DNS only, no
+CAA, no own AAAA). Retrying with the ↻ icon on the domain row issued it within minutes. Checks:
+- `https://api.smartbite.idraakai.org/` → `200`, the same body as `smartbite-backend-zsyr.onrender.com`
+- certificate `CN=api.smartbite.idraakai.org`, issued by Google Trust Services (WE1), valid to 2027-01-16; Render
+  renews it automatically
+- `http://` → `301` to `https://`
+- Observed in public DNS: the production service runs in Render's **Oregon** region (`gcp-us-west1`), so the
+  production database (§15.3) must be created in Oregon
+
+If a certificate shows an error while the DNS is right, retry it (↻) before changing anything.
+
+### 16.2 Staging, when it's resumed
+The same steps on `smartbite-api-staging` with `staging-api.smartbite.idraakai.org` (Cloudflare name
+`staging-api.smartbite`). Check `https://staging-api.smartbite.idraakai.org/actuator/health` → `UP`. Resume staging
+before its Free database expires (around 2026-11-15).
+
+### 16.3 Rules
+- **Keep the Cloudflare proxy off permanently.** `ClientIpResolver` trusts one proxy hop (Render's,
+  `TRUSTED_PROXIES=1`, verified in BE-019). Behind Cloudflare's proxy every user would appear as a Cloudflare address
+  and share one per-IP rate limit. Caching doesn't help this API, and Render already provides HTTPS. Turning the
+  proxy on would first need `CF-Connecting-IP` support in `ClientIpResolver`. (With the proxy off, two-level names
+  such as `api.smartbite` are fine: Render issues their certificates, not Cloudflare.)
+- **Never remove the `onrender.com` address:** released apps call it directly. The v2 app release switches its
+  production base URL to `https://api.smartbite.idraakai.org/` (Android TECH-020); older versions keep working.
+
+Sources (checked 2026-10-18): [Render: Configuring Cloudflare DNS](https://render.com/docs/configure-cloudflare-dns),
+[Render: Custom domains](https://render.com/docs/custom-domains) (plan allowances, AAAA and CAA notes).
 
 ## 15. User data on our database (D-024): staging and production
 
@@ -509,7 +549,7 @@ users by itself.
 
 ### 15.3 Production (owner, later, after the app release that contains this code)
 1. **Create the database:** a Render Postgres **0.1c-256mb ($6)**, 1 GB, **same region as the production
-   service**. Check **Recovery** (backups and point-in-time recovery).
+   service** (Oregon, observed 2026-10-18, §16.1). Check **Recovery** (backups and point-in-time recovery).
 2. **Connect it:** on the production service, set `DATABASE_URL` to its Internal URL. That's a deploy; the
    migrations run at startup.
 3. **Release the app** (a Play update) with this code. Nothing changes for users yet.
