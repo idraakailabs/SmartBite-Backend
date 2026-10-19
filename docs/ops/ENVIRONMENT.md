@@ -129,9 +129,9 @@ Classification: every step below **changes remote state or may cost money** → 
    # v1 unchanged
    curl -s -X POST https://<staging-host>/api/v1/meal-suggestions -H 'Content-Type: application/json' -d @v1-sample.json
    ```
-7. Point the Android debug build at the staging host by adding `SMARTBITE_STAGING_API_URL=https://<staging-host>/`
-   to the Android repo's `local.properties`, which becomes `BuildConfig.API_BASE_URL` for debug builds. Then run
-   the end-to-end checks on the Pixel_7 / Pixel_9 emulators (D-020).
+7. Run the Android `stagingDebug` variant, which calls `https://staging-api.smartbite.idraakai.org/` (fixed in
+   `app/build.gradle.kts` since Android TECH-020; `SMARTBITE_STAGING_API_URL` is no longer read). Then run the
+   end-to-end checks on a device or the Pixel_7 / Pixel_9 emulators (D-020).
 8. Rollback: redeploy the previous Render deploy (staging only; production untouched).
 
 Production follows the same steps later, with auto-deploy off, after staging sign-off and explicit approval.

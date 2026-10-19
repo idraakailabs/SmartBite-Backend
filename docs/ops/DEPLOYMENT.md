@@ -109,7 +109,7 @@ Sources (checked 2026-10-16):
 | Firestore | Unprefixed collections | `stg_`-prefixed collections |
 | RevenueCat customer deletion | On | **Off** (`BILLING_DELETION_ENABLED=false`): the RevenueCat project is shared |
 | Places | `disabled` (or `google` later) | `fake` |
-| Android client | Release builds | Debug builds with `SMARTBITE_STAGING_API_URL` |
+| Android client | `prodRelease` (Play) and `prodDebug` | `stagingDebug` and `stagingRelease` (Android TECH-020) |
 
 **$0 alternative to a staging service:** run the backend on the development machine and connect the phone over USB
 (`adb reverse`). It needs the same secrets locally, and the debug app currently accepts only `https://` addresses,
@@ -235,7 +235,8 @@ overwrites the phone's profile with the Firestore copy when Profile opens, and o
 create own document allowed, another user's denied, read denied, `quota/test` denied. Details: Android TECH-008.
 
 ### 7.4 Remote Config, for testing v2 with the debug app only
-1. Add a condition "App is `com.idraak.ai.smartbite.debug`" and set `api_v2_enabled` to `true` under it.
+1. Add a condition *App = `com.idraak.ai.smartbite.debug`* **and** *App version contains `staging`* (since Android TECH-020 the `.debug` app is also prodDebug, which talks to production), and set `api_v2_enabled` to `true` under it. A condition on the app
+   alone (as first set up) also turns v2 on for prodDebug, whose production backend has no v2 until §10.
 2. Keep the default `false`.
 
 The live app (v1.1.0) doesn't read this key at all.
@@ -246,12 +247,13 @@ seconds for the AI.
 
 ## 8. Android configuration
 
-- **Release builds:** both v1 and v2 use `https://smartbite-backend-zsyr.onrender.com/`
-  (`app/build.gradle.kts`, `productionApiUrl`). This is unchanged, so the in-place production upgrade needs no app
-  update.
-- **Debug builds:** both clients use `SMARTBITE_STAGING_API_URL` from the Android repo's `local.properties`, for
-  example `SMARTBITE_STAGING_API_URL=https://smartbite-api-staging.onrender.com/`. It must be `https://`. Without
-  it, debug builds use production. (Since 2026-10-16 this includes v1; before, v1 was always production.)
+Since Android TECH-020 (2026-10-18) the app has four build variants, and the API URL is fixed per environment in
+`app/build.gradle.kts` (Android `docs/TECHNICAL.md` §6):
+- **prod** (`prodRelease`, the Play app, and `prodDebug`): `https://api.smartbite.idraakai.org/` (§16).
+- **staging** (`stagingDebug`, `stagingRelease`): `https://staging-api.smartbite.idraakai.org/` (§16.2).
+- **Released versions up to 2.0.0** call `https://smartbite-backend-zsyr.onrender.com/` directly, so the in-place
+  production upgrade still needs no app update, and that address must stay.
+- `SMARTBITE_STAGING_API_URL` in `local.properties` is no longer read.
 - **v2 is off for everyone** until Remote Config `api_v2_enabled` is turned on (§7.4).
 
 ## 9. Testing
@@ -331,8 +333,8 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
    - From the first network again, add `-H "X-Forwarded-For: 1.2.3.4"`.
      - **Expect:** still `429`, so spoofing the header doesn't bypass the limit.
 6. **The app on staging:**
-   1. Set `SMARTBITE_STAGING_API_URL` and enable the Remote Config condition (§7.4).
-   2. Install the debug app and sign in with a **test** account.
+   1. Enable the Remote Config condition (§7.4).
+   2. Install the `stagingDebug` (or `stagingRelease`) build and sign in with a **test** account.
    3. Check:
       - picks for Cook at home, Near me / Around a place, and Anywhere
       - the server quota line, and the paywall after the free sets
@@ -493,8 +495,8 @@ The same steps on `smartbite-api-staging` with `staging-api.smartbite.idraakai.o
 **Done 2026-10-18.** CNAME DNS only, to `smartbite-api-staging.onrender.com`. Certificate
 `CN=staging-api.smartbite.idraakai.org`, Google Trust Services (WE1), valid to 2027-01-16. `/actuator/health` →
 `200 UP` (same as the `onrender.com` host), `GET /api/v2/me/quota` without a token → `401`, `http://` → `301` to
-`https://`. Debug and staging app builds use it through `SMARTBITE_STAGING_API_URL` in the Android repo's
-`local.properties` (owner's machine).
+`https://`. The app's staging variants (`stagingDebug`, `stagingRelease`) use it; it's fixed in `app/build.gradle.kts`
+(Android TECH-020, verified on the Pixel 6a 2026-10-18).
 
 ### 16.3 Rules
 - **Keep the Cloudflare proxy off permanently.** `ClientIpResolver` trusts one proxy hop (Render's,
@@ -533,11 +535,11 @@ users by itself.
 3. **Optional:** set `SMARTBITE_STORES_MODE=postgres` to also move the server's own documents (quota, caches,
    reports) to the database. Staging Firestore data (`stg_`) isn't copied; it's test data.
 4. **Turn it on for the debug app only.** In Firebase Remote Config:
-   - add a conditional value `backend_user_data_enabled` = `true` for the condition "App is
-     `com.idraak.ai.smartbite.debug`"
+   - add a conditional value `backend_user_data_enabled` = `true` for the condition from §7.4
+     (*App = `com.idraak.ai.smartbite.debug`* and *App version contains `staging`*)
    - keep the default `false`
    - `api_v2_enabled` must already be on for the debug app
-5. **Install the debug app** from `branch-13/user-history` (with `SMARTBITE_STAGING_API_URL` set) and sign in with
+5. **Install the debug app** (today: the `stagingDebug` variant; originally `branch-13/user-history`) and sign in with
    a **test** account. Check:
    - **Existing history uploads:** log a meal; within a few seconds `meal_history` has a row (see the SQL
      below).
