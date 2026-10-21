@@ -11,17 +11,17 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 
 | Area | State |
 |---|---|
-| Code | `staging` (`a00267b`, with the pre-production fixes for BE-BUG-007, -008, -009, -011) is deployed to staging. `./mvnw -B verify`: 220 tests pass, 11 Firestore emulator tests skipped there and run separately |
+| Code | `master` = `staging` = `f0e8d6c`, **deployed to production on 2026-10-19** (§10.1). `./mvnw -B verify` on that commit: 220 tests pass, 11 Firestore emulator tests skipped there and run separately |
 | Packaged jar | Starts locally in about 2 s at about 290 MB RSS; health, error bodies, auth and quota were checked by a local smoke test (§9.1) |
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). Suspended by the owner on 2026-10-17 and **running again on 2026-10-18** (custom domain
 `staging-api.smartbite.idraakai.org`, §16.2); suspend it again when the remaining checks are done. The Free database expires about 30 days after it was created (around 2026-11-15) |
-| Production | **Deploy deferred by the owner (2026-10-17)** until the v2 app is nearer release. Plan: §10 (nine steps). The custom domain `api.smartbite.idraakai.org` is **live** on the existing (v1) service (§16, verified 2026-10-18) |
+| Production | **v2 deployed 2026-10-19 and dormant** (§10.1): v1 serves the released apps; no released app calls v2 yet. Firestore stores, no database, Places `disabled`. Custom domain `api.smartbite.idraakai.org` live (§16) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
 | Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
 
-**Blockers before production:**
+**Before turning v2 on for users** (production itself is deployed):
 - the remaining staging check: §15.2 step 5 (a second device)
 - before turning D-024 on in production only: the $6 database, the hosted privacy policy and the Play Data safety
   form (§15.3)
@@ -150,7 +150,7 @@ Before the cutover (§10), on the **existing** service:
 | Auto-Deploy | **Off**. Turn it off *before* merging, or the merge deploys immediately |
 | Instance type | Standard (1 CPU, 2 GB) |
 | Health check path | `/actuator/health` (the current check is probably `/`, which keeps working) |
-| Max shutdown delay | 60 s (Settings → Deploy; the default is 30 s) |
+| Max shutdown delay | 60 s. **Not in the dashboard:** set `maxShutdownDelaySeconds` with the Render API (Update service) or a Blueprint; the default is 30 s, the maximum 300 s ([Render deploys](https://render.com/docs/deploys), checked 2026-10-19). Production was set with the API on 2026-10-19 |
 | Instances | 1 |
 | Build / start command | None. Docker uses the Dockerfile's build and its `ENTRYPOINT` |
 | Region | Unchanged. A Render service can't change region; moving it means a new service, a new hostname and an app update (§12) |
@@ -351,7 +351,7 @@ set `DATABASE_URL`; the log showed the migrations applied. Debug app on the Pixe
 Prerequisite: the staging round passed.
 1. **Check:** Billing shows the Pro plan. Note the existing service's region and instance type.
 2. **Protect against an early deploy:** on the existing service, turn **Auto-Deploy off**.
-3. **Size and timing:** set the instance type to **Standard** and the max shutdown delay to 60 s.
+3. **Size and timing:** set the instance type to **Standard** and the max shutdown delay to 60 s (Render API, §5; there's no dashboard field).
 4. **Environment variables:** add the production values (§6). Use "Save only" if offered. Otherwise Render
    redeploys the current code with the new variables, which is harmless: the old code ignores them.
 5. **Merge and push:** merge `staging` (the tested code) into `master` and push.
@@ -365,6 +365,24 @@ Prerequisite: the staging round passed.
 9. **Watch:** monitor the logs and metrics for the first hour (§11).
 
 v2 stays off for users until a later, separate decision: an app release plus Remote Config `api_v2_enabled`.
+
+### 10.1 Production cutover record (2026-10-19)
+
+- **Steps:** Auto-Deploy turned off; the instance was already Standard (1 CPU, 2 GB); max shutdown delay 60 s through the
+  Render API (Render answered with the service JSON); production variables added (owner); `staging` fast-forwarded
+  into `master` (`f0e8d6c`, pushed by the owner at 19:04 PKT); **Manual Deploy → Deploy latest commit**; Live.
+- **Checks after the deploy (2026-10-19):**
+  - `GET /actuator/health` → `200 {"status":"UP"}` on `api.smartbite.idraakai.org` and `smartbite-backend-zsyr.onrender.com`
+    (before the deploy the v1 code answered `500` there)
+  - `GET /api/v2/me/quota` without a token → `401` on both hosts
+  - `POST /api/v1/meal-suggestions` with the golden request (`src/test/resources/golden/v1/request.json`) on the
+    `onrender.com` host → `200` in 2.8 s, 3 suggestions, the same top-level keys as the golden response
+  - `http://api.smartbite.idraakai.org/` → `301` to `https://`
+- **Configuration in production:** `SPRING_PROFILES_ACTIVE=prod`; Firestore stores (no `DATABASE_URL`); `PLACES_PROVIDER`
+  unset (`disabled`); `GEMINI_API_KEY` and `GROQ_API_KEY` kept from v1. Values aren't recorded here.
+- **Not recorded yet (owner):** the health check path set to `/actuator/health`; the Play Store app getting picks; the
+  first hour of logs (`document store: firestore`, no `ERROR`, no burst of v1 `429`s from the new per-IP limit).
+- **Rollback:** §11 (Render → Events → previous deploy → Rollback, then revert `master`).
 
 ## 11. Rollback
 - **Code:** Render dashboard → the service → Events/Deploys → pick the previous successful deploy → **Rollback**.
@@ -413,7 +431,7 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 ## 14. Deployment checklist (owner)
 
 **Before staging**
-- [ ] Billing: Pro plan active; note the existing service's instance type and region.
+- [ ] Billing: Pro plan active (not re-checked); the existing service was already Standard (1 CPU, 2 GB) (2026-10-19).
 - [x] Push the feature branches and `staging` to GitHub (`idraakailabs/SmartBite-Backend`); Render builds from the remote.
 - [x] Create the secrets (§7.1, §7.2) and generate a `LOG_UID_HASH_KEY` for each environment.
 - [x] Check the Firestore rules (§7.3). Replaced 2026-10-17 (the old rules denied all app access).
@@ -429,12 +447,14 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Suspend or delete the staging service when testing ends.
 
 **Production**
-- [ ] Existing service: Auto-Deploy **off**, Standard instance, 60 s shutdown delay.
-- [ ] Production variables (§6), marked secret.
-- [ ] Merge `staging` → `master`; push.
-- [ ] Manual deploy; health check path `/actuator/health`.
-- [ ] Verify (§10 step 8): health, 401 without a token, one v1 request, the Play Store app gets picks.
-- [ ] Watch the logs and metrics for an hour; know where Rollback is (§11).
+- [x] Existing service: Auto-Deploy **off**, Standard instance, 60 s shutdown delay (Render API) (2026-10-19).
+- [x] Production variables (§6), marked secret (2026-10-19).
+- [x] Merge `staging` → `master`; push (`f0e8d6c`, 2026-10-19).
+- [x] Manual deploy (2026-10-19).
+- [ ] Health check path `/actuator/health`: not recorded.
+- [x] Verify (§10 step 8): health, 401 without a token, one v1 request (§10.1).
+- [ ] The Play Store app gets picks: not recorded.
+- [ ] Watch the logs and metrics for an hour; know where Rollback is (§11): not recorded.
 
 **Afterwards (separate decisions)**
 - [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
