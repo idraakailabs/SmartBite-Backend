@@ -16,15 +16,15 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). Suspended by the owner on 2026-10-17 and **running again on 2026-10-18** (custom domain
 `staging-api.smartbite.idraakai.org`, §16.2); suspend it again when the remaining checks are done. The Free database expires about 30 days after it was created (around 2026-11-15) |
-| Production | **v2 deployed 2026-10-19 and dormant** (§10.1): v1 serves the released apps. **Database `smartbite-db-prod` connected 2026-10-21** (§15.3): server documents on Postgres, user-data endpoints ready but off for the Play app (`backend_user_data_enabled = false`). Places `disabled`. Custom domain `api.smartbite.idraakai.org` live (§16) |
+| Production | **v2 deployed 2026-10-19 and dormant** (§10.1): v1 serves the released apps. **Database `smartbite-db-prod` connected 2026-10-21** (§15.3): server documents on Postgres, user-data endpoints ready but off for the Play app (`backend_user_data_enabled = false`). Privacy policy updated, deletion page live and Data safety form submitted for review on 2026-10-21 (§15.3 step 5). Places `disabled`. Custom domain `api.smartbite.idraakai.org` live (§16) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
 | Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
 
 **Before turning v2 on for users** (production itself is deployed):
 - the remaining staging check: §15.2 step 5 (a second device)
-- before turning D-024 on in production only: the $6 database, the hosted privacy policy and the Play Data safety
-  form (§15.3)
+- before turning D-024 on in production only: Google's approval of the Play Data safety form (submitted
+  2026-10-21). The $6 database, the hosted privacy policy and the deletion page are done (§15.3)
 
 There are no known code blockers.
 
@@ -477,7 +477,10 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
 - [ ] Watch the logs and metrics for an hour; know where Rollback is (§11): not recorded.
 
 **Afterwards (separate decisions)**
-- [ ] Turning v2 on for users (app release plus `api_v2_enabled`).
+- [x] Turning v2 on for users (app release plus `api_v2_enabled`): v2 app released on Play, `api_v2_enabled` on
+  (owner, confirmed 2026-10-21).
+- [ ] D-024 for users: Data safety form submitted 2026-10-21 (awaiting approval), then `backend_user_data_enabled`
+  (§15.3 step 4).
 - [ ] A Google Places key and budget (`PLACES_PROVIDER=google`).
 - [x] Custom domain `api.smartbite.idraakai.org` on the existing service (§16.1; verified 2026-10-18).
 - [x] `staging-api.smartbite.idraakai.org` on staging (§16.2; verified 2026-10-18).
@@ -596,12 +599,13 @@ users by itself.
    select uid, last_seen_at from user_activity order by last_seen_at desc limit 5;
    ```
 
-### 15.3 Production (steps 1–2 done 2026-10-21; steps 3–5 open)
+### 15.3 Production (steps 1–3 done; step 5 submitted 2026-10-21, awaiting Google's approval; step 4 open)
 1. **Create the database:** a Render Postgres **0.1c-256mb ($6)**, 1 GB, **same region as the production
    service** (read the region on the production service's dashboard; DNS doesn't show it). Check **Recovery** (backups and point-in-time recovery).
 2. **Connect it:** on the production service, set `DATABASE_URL` to its Internal URL. That's a deploy; the
    migrations run at startup.
-3. **Release the app** (a Play update) with this code. Nothing changes for users yet.
+3. **Release the app** (a Play update) with this code. Nothing changes for users yet. **Done:** the owner
+   released the v2 app on Play with `api_v2_enabled` on (confirmed 2026-10-21).
 4. **Turn it on:** in Remote Config, `backend_user_data_enabled` = `true` (with `api_v2_enabled` already on).
    - Phones upload their local history on their next sync.
    - Profiles are copied from Firestore on each user's first read.
@@ -609,6 +613,19 @@ users by itself.
 5. **Update the hosted privacy policy and the Play Data safety form first.** History, favourites, notes and the
    profile become stored on our servers. The repository copy is updated: `legal/privacy-policy.html` in the
    Android repo.
+   **Done by the owner, 2026-10-21:**
+   - Hosted privacy policy updated: `https://idraakai.org/smartbite/privacy`.
+   - Account deletion page live: `https://idraakai.org/smartbite/delete-account/`. It's the Data safety form's
+     "Delete account URL" and also its "Delete data URL" (deleting some data without deleting the account). It
+     lists what `DELETE /api/v2/me` deletes and keeps (api/README.md §11), names IdraakAI as the developer and
+     gives `idraakai.labs@gmail.com` for email requests. Its source is in the website's code, not in this
+     repository.
+   - Data safety form updated and **submitted for review**. Answers: data collected, none shared (the backend,
+     Firebase, RevenueCat and the AI providers act as service providers), encrypted in transit, deletion
+     available. Declared types: name, email address, user IDs, other personal info, purchase history,
+     approximate and precise location, health and fitness info, app interactions, other user-generated content,
+     crash logs, device or other IDs.
+   - **Outstanding:** Google's approval. Only then step 4.
 
 ### 15.4 Rollback
 - **Switch it off:** set `backend_user_data_enabled` back to `false`. Apps return to Firestore for the profile,
