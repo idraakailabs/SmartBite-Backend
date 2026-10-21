@@ -16,7 +16,7 @@ Related: every variable is listed in [ENVIRONMENT.md](ENVIRONMENT.md) §2; the a
 | Docker image | **Built by Render** for staging (2026-10-16) and running. Not built locally (WSL2 off) |
 | Staging | Verified (`smartbite-api-staging.onrender.com`, Singapore, 1c-2g, Postgres stores, Free `smartbite-db`). Suspended by the owner on 2026-10-17 and **running again on 2026-10-18** (custom domain
 `staging-api.smartbite.idraakai.org`, §16.2); suspend it again when the remaining checks are done. The Free database expires about 30 days after it was created (around 2026-11-15) |
-| Production | **v2 deployed 2026-10-19 and dormant** (§10.1): v1 serves the released apps; no released app calls v2 yet. Firestore stores, no database, Places `disabled`. Custom domain `api.smartbite.idraakai.org` live (§16) |
+| Production | **v2 deployed 2026-10-19 and dormant** (§10.1): v1 serves the released apps. **Database `smartbite-db-prod` connected 2026-10-21** (§15.3): server documents on Postgres, user-data endpoints ready but off for the Play app (`backend_user_data_enabled = false`). Places `disabled`. Custom domain `api.smartbite.idraakai.org` live (§16) |
 | Real providers | Groq and Firebase Auth and Firestore work on staging. Gemini, RevenueCat (a Premium customer), the Remote Config template read and Places are not yet checked (BE-012) |
 | Client IP behind Render's proxy | **Verified** on staging (2026-10-17): each network is its own client, and a spoofed header doesn't bypass the limit (§9.2 step 5) |
 | Firestore security rules | **Replaced 2026-10-17** (write-only own `users/{uid}`, everything else denied; §7.3). Not in this repository |
@@ -59,6 +59,7 @@ There are no known code blockers.
 | Item | Cost | Notes |
 |---|---|---|
 | Render **Pro workspace plan** | $25/month flat (paid) | A *workspace* plan: team members, unlimited services, **25 GB outbound bandwidth** and pipeline (build) minutes. Overages: $0.15/GB of bandwidth, $5 per 1,000 build minutes. **It does not include instances** |
+| **Correction (2026-10-21)** | — | The database Recovery page shows a **3-day** recovery window and offers "7 days with a Pro workspace", so the workspace is **not** on Pro. Check Render → Billing for the actual plan and fees before relying on the Pro figures in this table |
 | Production instance, **Standard** `1c-2g` (1 CPU, 2 GB) | ≈ $25/month | Recommended (§3). Billed per second. If the existing service already runs on a paid instance, this replaces that line rather than adding to it |
 | Staging instance (optional, short-lived) | ≈ $0.83/day as Standard, billed per second | Only while a test round runs; suspend or delete afterwards (§4). Render staff say suspended services don't accrue charges; check your usage page after suspending |
 | Bandwidth | Likely $0 extra | Responses are a few KB, and inbound traffic (including AI responses) isn't billed. Outbound requests to Google APIs probably count, but they're small |
@@ -384,6 +385,25 @@ v2 stays off for users until a later, separate decision: an app release plus Rem
   first hour of logs (`document store: firestore`, no `ERROR`, no burst of v1 `429`s from the new per-IP limit).
 - **Rollback:** §11 (Render → Events → previous deploy → Rollback, then revert `master`).
 
+### 10.2 Production database (2026-10-21)
+
+- **Created** in the dashboard: `smartbite-db-prod`, project SmartBite → Production, Singapore, PostgreSQL 18, `0.1c-256mb`,
+  1 GB, storage autoscaling on, High Availability off (needs a 1-CPU plan). Status Available within about 2 minutes.
+  Recovery page: point-in-time recovery for the past 3 days once initialised; manual exports available.
+- **Connected** by the owner: `DATABASE_URL` (Internal URL, secret) and `SMARTBITE_STORES_MODE=postgres` on
+  `SmartBite-Backend`, saved without deploying; then **Manual Deploy** of `f0e8d6c` (10:04 PKT), Live.
+- **Startup log:** `document store: postgres prefix=''`; Flyway migrated the empty schema to v1 (user data) and v2
+  (documents); `database ready; migrations applied=2 schema_version=2`; started in 14.3 s.
+- **Checks after the deploy:** `/actuator/health` `200 UP` on both hosts; `/api/v2/me/quota`, `/me/history` and
+  `/me/profile` without a token `401`; the v1 golden request on `api.smartbite.idraakai.org` `200` in 2.8 s with 3
+  suggestions in the golden shape.
+- **Seen before the deploy:** four v2 requests failed with `FEATURE_UNAVAILABLE` (2026-10-21, 09:53–10:02 PKT). Only
+  the history and profile endpoints answer that without a database, and the app calls them only when both
+  `api_v2_enabled` and `backend_user_data_enabled` are on, which isn't the case for the Play app. So a `.debug` build
+  (most likely prodDebug) matched a debug-app Remote Config condition; narrow those conditions to staging (§7.4).
+- **Not migrated:** production v2 had no users, so the Firestore documents (quota counters, caches, reports) weren't
+  copied; quota counters restart from zero.
+
 ## 11. Rollback
 - **Code:** Render dashboard → the service → Events/Deploys → pick the previous successful deploy → **Rollback**.
   The previous image is redeployed without a rebuild. Then revert the merge on `master` so the next deploy doesn't
@@ -541,7 +561,7 @@ users by itself.
 | Item | Cost |
 |---|---|
 | Staging database | `smartbite-db` already exists (Free plan, Singapore). Free: $0, expires 30 days after creation, no backups, test data only |
-| Production database | Render Postgres `0.1c-256mb` about **$6/month** plus $0.30/GB storage (1 GB to start), with backups. Same region as the production service. Create it only at launch |
+| Production database | **`smartbite-db-prod`** (created 2026-10-21): Render Postgres 18, `0.1c-256mb`, Singapore (same region as `SmartBite-Backend`), 1 GB with storage autoscaling on: **$6.30/month** (Render's create screen, 2026-10-21). Point-in-time recovery: 3 days on this workspace plan |
 | Web services | Unchanged. The database adds no instance |
 
 ### 15.2 Staging (owner)
@@ -576,7 +596,7 @@ users by itself.
    select uid, last_seen_at from user_activity order by last_seen_at desc limit 5;
    ```
 
-### 15.3 Production (owner, later, after the app release that contains this code)
+### 15.3 Production (steps 1–2 done 2026-10-21; steps 3–5 open)
 1. **Create the database:** a Render Postgres **0.1c-256mb ($6)**, 1 GB, **same region as the production
    service** (read the region on the production service's dashboard; DNS doesn't show it). Check **Recovery** (backups and point-in-time recovery).
 2. **Connect it:** on the production service, set `DATABASE_URL` to its Internal URL. That's a deploy; the
