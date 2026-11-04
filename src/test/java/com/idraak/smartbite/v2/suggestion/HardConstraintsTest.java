@@ -159,7 +159,8 @@ class HardConstraintsTest {
         assertThat(data.path("required_cuisines").get(0).asString()).isEqualTo("Chinese");
         assertThat(data.path("total_time_may_be_null").asBoolean()).isTrue();
         assertThat(data.has("max_total_minutes")).isFalse();
-        assertThat(SuggestionPrompt.SYSTEM).contains("profile_status", "diet_is_explicit", "max_total_minutes", "total_time_may_be_null");
+        assertThat(SuggestionPrompt.SYSTEM).contains("profile_status", "diet_is_explicit", "max_total_minutes", "total_time_may_be_null",
+                "SmartBite — Production Food Recommendation Engine", "13. FINAL VALIDATION");
     }
 
     @Test

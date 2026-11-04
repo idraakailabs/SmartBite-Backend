@@ -51,7 +51,12 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
      `required_cuisines` (any intent) is exclusive: no off-cuisine fallback (`MealSuggestionRequest.cuisinesStrict`).
      The time limit (`effectiveMaxMinutes`) is `max_total_minutes`, capped at 30 by `refine.quicker` on Cook at
      home, and never applies to eat-out. Only eat-out picks for these clients may have `total_time_minutes: null`
-     (`timeMayBeNull`); older clients always get an integer. Prompt version `suggest-v2.3`.
+     (`timeMayBeNull`); older clients always get an integer.
+   - **Prompt (BE-028, `suggest-v2.4`):** `SuggestionPrompt.SYSTEM` is the owner's "SmartBite — Production Food
+     Recommendation Engine" prompt (2026-11-04), kept as written plus the BE-027 fields (`profile_status`,
+     `diet_is_explicit`, `max_total_minutes`, `total_time_may_be_null`). Its eat-out rule returns a null time only
+     when `total_time_may_be_null` is true. It is about 6,000 input tokens per call (the earlier prompt was about
+     600); the user message and data block are unchanged. Before BE-028: `suggest-v2.3` (BE-027).
 4. For `eat_out` with coordinates, `PlacesAreaGrounding` verifies the hero pick (and the alternatives when
    `PLACES_VERIFY_ALTERNATIVES`): nearby places come from the cell cache or one Nearby call, and Text Search IDs
    are matched within the radius. Verified picks carry `place_count`, `radius_km` and
