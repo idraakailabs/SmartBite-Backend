@@ -1,5 +1,6 @@
 package com.idraak.smartbite.v2.suggestion.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.idraak.smartbite.v2.model.Enums.Category;
 import com.idraak.smartbite.v2.model.Enums.Diet;
 import com.idraak.smartbite.v2.model.Enums.Difficulty;
@@ -44,7 +45,7 @@ public record MealSuggestionResponse(
             SpiceLevel spiceLevel,
             String primaryProtein,
             List<String> keyIngredients,
-            int totalTimeMinutes,
+            @JsonInclude(JsonInclude.Include.ALWAYS) Integer totalTimeMinutes,
             Difficulty difficulty,
             int servings,
             List<Reason> reasons,

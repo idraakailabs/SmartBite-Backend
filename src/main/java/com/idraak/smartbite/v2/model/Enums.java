@@ -12,6 +12,18 @@ public final class Enums {
         @JsonProperty("eat_out") EAT_OUT, @JsonProperty("cook") COOK, @JsonProperty("anywhere") ANYWHERE
     }
 
+    /**
+     * How much of the taste profile the user actually answered (BE-027, Android TECH-022): {@code complete} =
+     * onboarding finished; {@code partial} = some answers saved; {@code empty} = every value is a default.
+     */
+    public enum ProfileStatus {
+        @JsonProperty("complete") COMPLETE, @JsonProperty("partial") PARTIAL, @JsonProperty("empty") EMPTY;
+
+        public String wire() {
+            return name().toLowerCase();
+        }
+    }
+
     public enum Diet {
         @JsonProperty("non_vegetarian") NON_VEGETARIAN, @JsonProperty("vegetarian") VEGETARIAN, @JsonProperty("vegan") VEGAN;
 

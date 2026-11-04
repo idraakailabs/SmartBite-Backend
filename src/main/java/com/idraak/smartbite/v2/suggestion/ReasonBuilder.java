@@ -118,7 +118,7 @@ public final class ReasonBuilder {
 
         // REFINE_APPLIED (quicker / milder / vegetarian today), one reason with up to 3 pieces of evidence
         List<Evidence> refineEvidence = new ArrayList<>();
-        if (refine.isQuicker() && dish.totalTimeMinutes() <= 30) {
+        if (refine.isQuicker() && dish.totalTimeMinutes() != null && dish.totalTimeMinutes() <= 30) {
             refineEvidence.add(ev(EvidenceSource.REFINE, "refine.quicker", "30 min or less", dish.totalTimeMinutes() + " min"));
         }
         if (refine.isMilder() && spiceTarget != null && dish.spiceLevel().ordinal() <= spiceTarget.ordinal()) {
@@ -133,7 +133,7 @@ public final class ReasonBuilder {
 
         // FITS_COOKING_TIME (cook / anywhere) and FITS_SKILL (cook)
         if (r.intent() != Intent.EAT_OUT && p.cookingTime() != null && p.cookingTime().maxMinutes() != null
-                && dish.totalTimeMinutes() <= p.cookingTime().maxMinutes()) {
+                && dish.totalTimeMinutes() != null && dish.totalTimeMinutes() <= p.cookingTime().maxMinutes()) {
             reasons.add(reason(ReasonCode.FITS_COOKING_TIME, "About " + dish.totalTimeMinutes() + " min, within your usual cooking time",
                     ev(EvidenceSource.PROFILE, "profile.cooking_time", p.cookingTime().wire(), dish.totalTimeMinutes() + " min (estimate)")));
         }

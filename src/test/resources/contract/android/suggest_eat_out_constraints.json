@@ -1,0 +1,24 @@
+{
+  "intent": "eat_out",
+  "timezone": "Asia/Karachi",
+  "area": {
+    "lat": 31.47,
+    "lng": 74.27,
+    "radius_km": 3.0,
+    "label": "Johar Town, Lahore",
+    "city": "Lahore",
+    "country": "Pakistan"
+  },
+  "profile": {
+    "diet": "non_vegetarian",
+    "diet_is_explicit": false,
+    "household_size": 2
+  },
+  "session_excluded_dishes": [
+    "Beef Nihari"
+  ],
+  "profile_status": "empty",
+  "required_cuisines": [
+    "Pakistani"
+  ]
+}

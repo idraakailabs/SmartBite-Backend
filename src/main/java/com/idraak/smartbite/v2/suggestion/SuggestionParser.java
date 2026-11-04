@@ -15,7 +15,8 @@ import java.util.List;
 /**
  * Safe parsing of the model's JSON. Text around the JSON (markdown fences, prose) is ignored. Items missing a
  * required attribute are dropped rather than filled in with invented values; lengths are clipped; unknown
- * categories become {@code other}. Throws {@link UnusableOutputException} if nothing usable remains.
+ * categories become {@code other}. A missing {@code total_time_minutes} is kept as null for the generator to judge
+ * against the request (BE-027). Throws {@link UnusableOutputException} if nothing usable remains.
  */
 public class SuggestionParser {
 
@@ -61,14 +62,18 @@ public class SuggestionParser {
         Diet diet = enumValue(Diet.class, text(n, "diet", 20));
         SpiceLevel spice = enumValue(SpiceLevel.class, text(n, "spice_level", 20));
         Difficulty difficulty = enumValue(Difficulty.class, text(n, "difficulty", 10));
-        Integer minutes = n.path("total_time_minutes").isNumber() ? n.path("total_time_minutes").asInt() : null;
+        // A missing or null time is kept as null: SuggestionGenerator rejects it unless the request allows it
+        // (eat-out, BE-027). A time that is present but implausible makes the item invalid.
+        JsonNode time = n.path("total_time_minutes");
+        Integer minutes = time.isNumber() ? Integer.valueOf(time.asInt()) : null;
+        boolean badTime = !time.isMissingNode() && !time.isNull() && (minutes == null || minutes < 1 || minutes > 1440);
         List<String> ingredients = new ArrayList<>();
         for (JsonNode i : n.path("key_ingredients")) {
             String s = clip(i.isString() ? i.asString() : null, 40);
             if (s != null && ingredients.size() < 8) ingredients.add(s);
         }
         if (name == null || description == null || cuisine == null || diet == null || spice == null
-                || difficulty == null || minutes == null || minutes < 1 || minutes > 1440 || ingredients.isEmpty()) {
+                || difficulty == null || badTime || ingredients.isEmpty()) {
             return null;
         }
         return new Candidate(name, description, Category.fromWire(text(n, "category", 30)), cuisine, region, diet,

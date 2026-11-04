@@ -27,15 +27,22 @@ public final class SuggestionPrompt {
             3. Never suggest anything listed in avoid_foods, recent_suggestions or excluded_dishes.
             4. Never mention calories, weight, nutrition targets, health claims or medical advice.
             5. Describe each dish in its own culinary tradition (its real cuisine and regional style).
-            6. If required_cuisines is in the user data, every dish must belong to one of those cuisines, whatever
-               favourite_cuisines or the history say.
-            7. Reply in English with ONLY one JSON object, no markdown, in exactly this shape:
+            6. If required_cuisines is in the user data, it is exclusive: every dish's origin.cuisine must be one of
+               those cuisines, whatever favourite_cuisines, the area or the history say.
+            7. profile_status says how much of the profile the person answered: "complete" = all of it; "partial" =
+               only the values present were chosen by them; "empty" = they chose nothing. A value they did not choose
+               is a default, never a confirmed preference: with "partial" or "empty", suggest varied, widely liked
+               dishes for the meal slot and area instead of fitting missing or default values.
+            8. If diet_is_explicit is false, the person never chose a diet: "non_vegetarian" only means no restriction
+               is known, not that they want meat. Mix dishes with and without meat naturally.
+            9. If max_total_minutes is in the user data, every dish's total_time_minutes must be at most that.
+            10. Reply in English with ONLY one JSON object, no markdown, in exactly this shape:
             {"suggestions":[{"name":string,"short_description":string (max 200 chars),
             "category":one of [biryani_rice,curry_karahi,grill_kebab,bread_paratha,daal_lentils,soup,salad_bowl,noodles_pasta,pizza,sandwich_burger,street_food,breakfast_eggs,dessert,drink,other],
             "origin":{"cuisine":string,"region":string or null},
             "diet":"non_vegetarian"|"vegetarian"|"vegan","contains_meat_or_fish":boolean,"contains_egg":boolean,"contains_dairy":boolean,
             "spice_level":"mild"|"medium"|"spicy"|"extra_spicy","primary_protein":string or null,
-            "key_ingredients":[string, 1 to 8 items],"total_time_minutes":integer (typical home cooking time),
+            "key_ingredients":[string, 1 to 8 items],"total_time_minutes":integer (typical home cooking time; null only if total_time_may_be_null is true),
             "difficulty":"easy"|"medium"|"hard","similar_to":string or null (a dish from loved_dishes or liked_dishes this resembles, else null)}]}
             """;
 
@@ -59,7 +66,10 @@ public final class SuggestionPrompt {
             if (r.area().country() != null) data.put("country", r.area().country());
         }
         var p = r.profile();
+        if (r.profileStatus() != null) data.put("profile_status", r.profileStatus().wire());
         data.put("diet", effectiveDiet.wire());
+        // A defaulted diet only matters while it's non-vegetarian: vegetarian_today or a stricter diet is a real rule.
+        if (!r.dietIsExplicit() && effectiveDiet == Diet.NON_VEGETARIAN) data.put("diet_is_explicit", false);
         if (targetSpice != null) data.put("spice_preference", targetSpice.wire());
         strings(data.putArray("favourite_cuisines"), p.topCuisinesOrEmpty());
         strings(data.putArray("favourite_proteins"), p.favoriteProteinsOrEmpty());
@@ -79,8 +89,11 @@ public final class SuggestionPrompt {
         if (refine.isVegetarianToday()) tweaks.add("vegetarian today");
         if (refine.isBudgetFriendly()) tweaks.add("everyday, budget-friendly dishes");
         if (refine.cuisine() != null) tweaks.add("cuisine or country: " + refine.cuisine());
-        List<String> required = r.requiredCuisines();
+        List<String> required = r.effectiveRequiredCuisines();
         if (!required.isEmpty()) strings(data.putArray("required_cuisines"), required);
+        Integer maxMinutes = r.effectiveMaxMinutes();
+        if (maxMinutes != null) data.put("max_total_minutes", maxMinutes);
+        if (r.timeMayBeNull()) data.put("total_time_may_be_null", true);
         strings(data.putArray("recent_suggestions"), r.recentSuggestionsOrEmpty());
         List<String> excluded = new java.util.ArrayList<>(r.sessionExcludedOrEmpty());
         excluded.addAll(extraExclusions);

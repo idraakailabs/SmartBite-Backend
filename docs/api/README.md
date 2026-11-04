@@ -151,6 +151,22 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
    - **Anywhere with chosen cuisines** (BE-BUG-009): the cuisines in `refine.cuisine` (comma-separated) are
      required. Picks of another cuisine are dropped and regenerated like the filters above. Only if none matches
      are the off-cuisine picks returned, with `meta.degraded = true`.
+   - **Constraint contract** (BE-027, Android TECH-022, 2026-11-04; all fields optional, so older clients are
+     unaffected). A request that carries `profile_status` uses it:
+     - `profile_status` (`complete` | `partial` | `empty`) and `profile.diet_is_explicit` go into the prompt, which
+       treats values the user didn't choose as defaults, never as confirmed preferences. A defaulted
+       `non_vegetarian` diet means "no restriction known", not "wants meat". A diet rule (vegetarian, vegan,
+       `vegetarian_today`) is always enforced, whatever `diet_is_explicit` says.
+     - `required_cuisines` (any intent, max 12) is **exclusive**: every pick's `origin.cuisine` (or region) must
+       name one of them, and there's no off-cuisine fallback. If no pick matches after the regeneration the
+       answer is `502 GENERATION_FAILED` and no quota is used. `refine.cuisine` still works as above for Anywhere.
+     - `max_total_minutes` (1–1440; the app sends it for `cook`) is a hard limit, capped at 30 by
+       `refine.quicker` on `cook`; ignored for `eat_out`. Picks over it, and `cook`/`anywhere` picks without a
+       time, are dropped and regenerated.
+     - `total_time_minutes` may be `null` on `eat_out` picks for these clients only (an eat-out dish has no
+       cooking time). Without `profile_status`, every pick still carries an integer.
+   - All of these checks run in code before the set is returned and before quota is committed, so a set the app
+     would reject is never counted. Invalid JSON from a provider falls back to the next provider (step 5).
 8. Area verification and ranking (§7). 9. Compute reasons (below). 10. Commit quota → respond.
 
 **Deadlines:** the whole request has a 25 s budget. Per AI attempt: connect 3 s, read 15 s, and no new attempt
@@ -404,3 +420,6 @@ endpoints need `DATABASE_URL`; without it they answer `503 FEATURE_UNAVAILABLE` 
 - Send `X-Entitlement-Refresh: true` on the first call after a purchase or restore.
 - Read timeouts: 30 s for suggestions, 45 s for recipes; retry only with the same `Idempotency-Key`.
 - Base URL from `BuildConfig`: debug → staging, release → production.
+- Constraint contract (BE-027, §6 step 7): send `profile_status`, `profile.diet_is_explicit`, `required_cuisines`
+  and (for `cook`) `max_total_minutes` together, and accept `total_time_minutes: null` on eat-out picks. The
+  server enforces them before counting the set; the app's own check stays as a second line of defence.

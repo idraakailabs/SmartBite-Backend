@@ -184,6 +184,37 @@ class ContractFixturesTest {
     }
 
     @Test
+    void cookRequestOnTheConstraintContractIsAcceptedAndRecorded() throws Exception {
+        // BE-027 (Android TECH-022, Remote Config picks_constraints_enabled on): max_total_minutes 60 holds the picks.
+        stubThreeDishes();
+        replay("suggest_cook_constraints", "suggest_cook_constraints",
+                post("/api/v2/meal-suggestions").header("Idempotency-Key", "6b1f0d2e-1c2a-4f6e-9a51-0c4b7f3d2e15"));
+        JsonNode recorded = JSON.readTree(Files.readString(SERVER.resolve("suggest_cook_constraints.json")));
+        for (JsonNode s : recorded.path("suggestions")) assertThat(s.path("total_time_minutes").asInt()).isBetween(1, 60);
+    }
+
+    @Test
+    void eatOutRequestOnTheConstraintContractMayRecordANullTime() throws Exception {
+        // Same coordinates and places as the eat-out test above: the area cell is cached across tests.
+        FakePlacesClient fake = (FakePlacesClient) places;
+        fake.setNearby(List.of(new PlacesClient.Place("ChIJ-near", 31.4700, 74.2730)));
+        fake.setTextResults("Seekh Kebab", List.of("ChIJ-near"));
+        stubAi(AiStubs.suggestionsContent(
+                Dish.meat("Chicken Karahi", "Chicken", "Chicken", "Tomatoes").withMinutes(null),
+                Dish.meat("Seekh Kebab", "Beef", "Beef"),
+                Dish.veg("Daal Mash", "Urad daal", "Butter")));
+        replay("suggest_eat_out_constraints", "suggest_eat_out_constraints",
+                post("/api/v2/meal-suggestions").header("Idempotency-Key", "6b1f0d2e-1c2a-4f6e-9a51-0c4b7f3d2e16"));
+        JsonNode karahi = null;
+        for (JsonNode s : JSON.readTree(Files.readString(SERVER.resolve("suggest_eat_out_constraints.json"))).path("suggestions")) {
+            if (s.path("name").asString().equals("Chicken Karahi")) karahi = s;
+        }
+        assertThat(karahi).isNotNull();
+        assertThat(karahi.has("total_time_minutes")).isTrue();
+        assertThat(karahi.path("total_time_minutes").isNull()).isTrue();
+    }
+
+    @Test
     void recipeRequestFromTheAppIsAcceptedAndLockedForFreeUsers() throws Exception {
         stubAi(RECIPE);
         replay("recipe", "recipe_free", post("/api/v2/recipes"));

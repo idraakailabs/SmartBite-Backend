@@ -57,4 +57,22 @@ class SuggestionParserTest {
         assertThatThrownBy(() -> parser.parse("{\"suggestions\":[{\"name\":\"x\"}]}")).isInstanceOf(UnusableOutputException.class);
         assertThatThrownBy(() -> parser.parse("{not json}")).isInstanceOf(UnusableOutputException.class);
     }
+
+    @Test
+    void aMissingOrNullTimeIsKeptAsNullForTheGeneratorToJudge() {
+        // BE-027: eat-out may have no time; SuggestionGenerator rejects null where the request needs a time.
+        String nullTime = ITEM.replace("\"total_time_minutes\":40", "\"total_time_minutes\":null");
+        String noTime = ITEM.replace("\"total_time_minutes\":40,", "");
+        List<Candidate> c = parser.parse("{\"suggestions\":[" + nullTime + "," + noTime + "]}");
+        assertThat(c).hasSize(2).allSatisfy(x -> assertThat(x.totalTimeMinutes()).isNull());
+    }
+
+    @Test
+    void aTimeThatIsPresentButImplausibleDropsTheItem() {
+        String zero = ITEM.replace("\"total_time_minutes\":40", "\"total_time_minutes\":0");
+        String huge = ITEM.replace("\"total_time_minutes\":40", "\"total_time_minutes\":5000");
+        String text = ITEM.replace("\"total_time_minutes\":40", "\"total_time_minutes\":\"about 40\"");
+        List<Candidate> c = parser.parse("{\"suggestions\":[" + zero + "," + huge + "," + text + "," + ITEM + "]}");
+        assertThat(c).singleElement().satisfies(x -> assertThat(x.totalTimeMinutes()).isEqualTo(40));
+    }
 }

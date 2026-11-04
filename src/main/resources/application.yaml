@@ -99,7 +99,7 @@ smartbite:
       gemini-base-url: ${gemini.base-url}
       gemini-api-key: ${gemini.api-key}
       gemini-model: ${gemini.model}
-      prompt-version: suggest-v2.2
+      prompt-version: suggest-v2.3
       recipe-prompt-version: recipe-v2.2
     places:
       provider: ${PLACES_PROVIDER:disabled}

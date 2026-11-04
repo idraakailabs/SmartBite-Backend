@@ -15,7 +15,7 @@ public final class AiStubs {
     }
 
     public record Dish(String name, String diet, boolean meat, boolean egg, boolean dairy, String spice, String cuisine,
-                       String protein, List<String> ingredients, int minutes, String difficulty, String similarTo) {
+                       String protein, List<String> ingredients, Integer minutes, String difficulty, String similarTo) {
 
         public static Dish veg(String name, String... ingredients) {
             return new Dish(name, "vegetarian", false, false, true, "medium", "Pakistani", null, List.of(ingredients), 30, "easy", null);
@@ -27,6 +27,11 @@ public final class AiStubs {
 
         public Dish withCuisine(String newCuisine) {
             return new Dish(name, diet, meat, egg, dairy, spice, newCuisine, protein, ingredients, minutes, difficulty, similarTo);
+        }
+
+        /** {@code null} sends {@code "total_time_minutes": null}. */
+        public Dish withMinutes(Integer newMinutes) {
+            return new Dish(name, diet, meat, egg, dairy, spice, cuisine, protein, ingredients, newMinutes, difficulty, similarTo);
         }
 
         public static Dish mislabelled(String name, String... ingredients) {
@@ -52,7 +57,8 @@ public final class AiStubs {
             else n.put("primary_protein", d.protein());
             ArrayNode ing = n.putArray("key_ingredients");
             d.ingredients().forEach(ing::add);
-            n.put("total_time_minutes", d.minutes());
+            if (d.minutes() == null) n.putNull("total_time_minutes");
+            else n.put("total_time_minutes", d.minutes());
             n.put("difficulty", d.difficulty());
             if (d.similarTo() == null) n.putNull("similar_to");
             else n.put("similar_to", d.similarTo());

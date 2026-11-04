@@ -1,0 +1,135 @@
+{
+  "request_id" : "f3b0ef0e-9de9-4023-88bf-ec232e9e7d31",
+  "generated_at" : "2026-11-04T07:15:48.960877700Z",
+  "meal_slot" : "lunch",
+  "intent" : "eat_out",
+  "area_context" : {
+    "mode" : "coordinates",
+    "label" : "Johar Town, Lahore",
+    "radius_km" : 3.0,
+    "places_grounding" : "used"
+  },
+  "suggestions" : [ {
+    "id" : "sug_1",
+    "name" : "Seekh Kebab",
+    "short_description" : "A tasty Seekh Kebab.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "non_vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "spicy",
+    "primary_protein" : "Beef",
+    "key_ingredients" : [ "Beef" ],
+    "total_time_minutes" : 50,
+    "difficulty" : "medium",
+    "servings" : 2,
+    "reasons" : [ {
+      "code" : "FOUND_NEARBY",
+      "text" : "Found at 1+ places within 3 km",
+      "evidence" : [ {
+        "source" : "places",
+        "field" : "places.place_count",
+        "user_value" : "3 km",
+        "dish_value" : "1"
+      } ]
+    } ],
+    "verification" : {
+      "status" : "verified",
+      "place_count" : 1,
+      "place_count_is_lower_bound" : true,
+      "radius_km" : 3.0,
+      "area_label" : "Johar Town, Lahore",
+      "checked_at" : "2026-11-04T07:15:48.960877700Z",
+      "maps" : {
+        "query" : "Seekh Kebab near Johar Town, Lahore",
+        "url" : "https://www.google.com/maps/search/?api=1&query=Seekh%20Kebab%20near%20Johar%20Town%2C%20Lahore",
+        "place_ids" : [ "ChIJ-near" ]
+      },
+      "attribution" : {
+        "must_display" : true,
+        "text" : "Google Maps",
+        "logo" : "google_maps"
+      }
+    }
+  }, {
+    "id" : "sug_2",
+    "name" : "Chicken Karahi",
+    "short_description" : "A tasty Chicken Karahi.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "non_vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "spicy",
+    "primary_protein" : "Chicken",
+    "key_ingredients" : [ "Chicken", "Tomatoes" ],
+    "total_time_minutes" : null,
+    "difficulty" : "medium",
+    "servings" : 2,
+    "reasons" : [ ],
+    "verification" : {
+      "status" : "popular_around",
+      "unverified_reason" : "no_match_found",
+      "place_count_is_lower_bound" : true,
+      "radius_km" : 3.0,
+      "area_label" : "Johar Town, Lahore",
+      "maps" : {
+        "query" : "Chicken Karahi near Johar Town, Lahore",
+        "url" : "https://www.google.com/maps/search/?api=1&query=Chicken%20Karahi%20near%20Johar%20Town%2C%20Lahore",
+        "place_ids" : [ ]
+      }
+    }
+  }, {
+    "id" : "sug_3",
+    "name" : "Daal Mash",
+    "short_description" : "A tasty Daal Mash.",
+    "category" : "curry_karahi",
+    "origin" : {
+      "cuisine" : "Pakistani",
+      "region" : "Lahori",
+      "label" : "Pakistani · Lahori style"
+    },
+    "diet" : "vegetarian",
+    "contains_egg" : false,
+    "spice_level" : "medium",
+    "key_ingredients" : [ "Urad daal", "Butter" ],
+    "total_time_minutes" : 30,
+    "difficulty" : "easy",
+    "servings" : 2,
+    "reasons" : [ ],
+    "verification" : {
+      "status" : "popular_around",
+      "unverified_reason" : "not_checked",
+      "place_count_is_lower_bound" : true,
+      "radius_km" : 3.0,
+      "area_label" : "Johar Town, Lahore",
+      "maps" : {
+        "query" : "Daal Mash near Johar Town, Lahore",
+        "url" : "https://www.google.com/maps/search/?api=1&query=Daal%20Mash%20near%20Johar%20Town%2C%20Lahore",
+        "place_ids" : [ ]
+      }
+    }
+  } ],
+  "quota" : {
+    "is_premium" : false,
+    "unlimited" : false,
+    "limit" : 3,
+    "used" : 1,
+    "remaining" : 2,
+    "day" : "2026-11-04",
+    "timezone" : "Asia/Karachi",
+    "reset_at" : "2026-11-04T19:00:00Z"
+  },
+  "meta" : {
+    "prompt_version" : "suggest-v2.3",
+    "degraded" : false,
+    "idempotent_replay" : false
+  }
+}

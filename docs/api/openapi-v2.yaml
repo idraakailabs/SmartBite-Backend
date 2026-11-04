@@ -1071,6 +1071,36 @@ components:
             $ref: '#/components/schemas/DishName'
         refine:
           $ref: '#/components/schemas/RefineOptions'
+        profile_status:
+          $ref: '#/components/schemas/ProfileStatus'
+        required_cuisines:
+          description: |
+            BE-027. Exclusive, for any intent: every suggestion's `origin.cuisine` (or region) must name one of
+            these. Off-cuisine picks are dropped and regenerated, never returned; if none matches, the answer is
+            `502 GENERATION_FAILED` and no quota is used.
+          type: array
+          maxItems: 12
+          items:
+            allOf:
+              - $ref: '#/components/schemas/SafeText'
+            minLength: 1
+            maxLength: 40
+        max_total_minutes:
+          description: |
+            BE-027. Hard limit on `total_time_minutes` (the app sends it for `cook`: its cook sheet, the profile's
+            cooking time and `refine.quicker` combined). On `cook`, `refine.quicker` also caps it at 30. Ignored for
+            `eat_out`.
+          type: integer
+          minimum: 1
+          maximum: 1440
+
+    ProfileStatus:
+      type: string
+      enum: [complete, partial, empty]
+      description: |
+        BE-027. How much of the profile the user answered: `complete` = onboarding finished; `partial` = some
+        answers saved; `empty` = every value is a default. Sending it opts into the constraint contract
+        (nullable eat-out `total_time_minutes`). Values the user didn't choose are never treated as preferences.
 
     Area:
       type: object
@@ -1130,6 +1160,12 @@ components:
       properties:
         diet:
           $ref: '#/components/schemas/Diet'
+        diet_is_explicit:
+          type: boolean
+          description: |
+            BE-027. `false` = `diet` is the app's `non_vegetarian` default because the user never chose a diet; the
+            model treats it as "no restriction known", not as a preference. Omitted = the user chose it. A
+            vegetarian or vegan diet is always enforced.
         spice_tolerance:
           $ref: '#/components/schemas/SpiceLevel'
         top_cuisines:
@@ -1215,7 +1251,10 @@ components:
           minimum: 1
           maximum: 20
         cuisine:
-          description: Optional cuisine or country filter ("Anywhere in the world").
+          description: |
+            Optional cuisine or country filter ("Anywhere in the world"). On `anywhere` the comma-separated
+            cuisines are required (with a degraded off-cuisine fallback); elsewhere a preference. Newer clients also
+            send them as the exclusive `required_cuisines` (BE-027).
           allOf:
             - $ref: '#/components/schemas/SafeText'
           minLength: 1
@@ -1316,10 +1355,13 @@ components:
             type: string
             maxLength: 40
         total_time_minutes:
-          type: integer
+          type: [integer, 'null']
           minimum: 1
           maximum: 1440
-          description: AI estimate of home cooking time (prep + cook). Shown as an estimate.
+          description: |
+            AI estimate of home cooking time (prep + cook). Shown as an estimate. Always present. `null` only on
+            `eat_out` picks for a request that sent `profile_status` (BE-027); otherwise an integer, within
+            `max_total_minutes` when that applies.
         difficulty:
           $ref: '#/components/schemas/Difficulty'
         servings:

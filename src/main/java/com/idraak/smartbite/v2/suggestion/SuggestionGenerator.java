@@ -20,7 +20,9 @@ import java.util.List;
  * Prompt -> provider chain -> parse -> safety filters (diet, dislikes, recent, excluded). If fewer than 3 remain,
  * regenerates once excluding what was dropped, then returns 1 to 3 safe candidates. Zero -> GENERATION_FAILED.
  * Cuisines chosen for an Anywhere set are required (BE-BUG-009); only if no candidate matches them are
- * off-cuisine but otherwise safe candidates returned, marked degraded, rather than failing the set.
+ * off-cuisine but otherwise safe candidates returned, marked degraded, rather than failing the set. Cuisines sent
+ * as {@code required_cuisines} (BE-027) are exclusive: no off-cuisine fallback, so a set the app would reject is
+ * never returned or counted. Every check runs before quota is committed.
  */
 public class SuggestionGenerator {
 
@@ -70,7 +72,7 @@ public class SuggestionGenerator {
                 }
             }
         }
-        if (kept.isEmpty() && !offCuisine.isEmpty()) {
+        if (kept.isEmpty() && !offCuisine.isEmpty() && !r.cuisinesStrict()) {
             log.info("suggestion set has no pick in the required cuisines; returning off-cuisine picks");
             List<Candidate> fallback = new ArrayList<>();
             for (Candidate c : offCuisine) {
@@ -82,24 +84,40 @@ public class SuggestionGenerator {
         return new Output(List.copyOf(kept), degraded);
     }
 
-    /** @return why a candidate is rejected, or null if it's acceptable */
+    /**
+     * The hard constraints every returned pick must meet (BE-027): diet, disliked foods, recent and excluded dishes,
+     * no duplicates, the required cuisines, a time estimate (unless the request allows none) and the time limit.
+     *
+     * @return why a candidate is rejected, or null if it's acceptable
+     */
     static String rejection(Candidate c, MealSuggestionRequest r, Diet diet, List<Candidate> kept) {
-        if (!DietFilter.allows(diet, c.declared(), c.name(), c.keyIngredients())) return "diet";
-        String text = c.name() + " | " + String.join(" | ", c.keyIngredients());
+        List<String> checked = new ArrayList<>(c.keyIngredients());
+        if (c.primaryProtein() != null) checked.add(c.primaryProtein());
+        if (!DietFilter.allows(diet, c.declared(), c.name(), checked)) return "diet";
+        String text = c.name() + " | " + String.join(" | ", checked);
         for (String disliked : r.profile().dislikedFoodsOrEmpty()) {
             if (Text.containsPhrase(text, disliked)) return "disliked";
         }
         for (String s : r.recentSuggestionsOrEmpty()) if (Text.sameDish(s, c.name())) return "recent";
         for (String s : r.sessionExcludedOrEmpty()) if (Text.sameDish(s, c.name())) return "excluded";
         for (Candidate k : kept) if (Text.sameDish(k.name(), c.name())) return "duplicate";
-        List<String> required = r.requiredCuisines();
-        if (!required.isEmpty() && required.stream().noneMatch(want -> matchesCuisine(c, want))) return "cuisine";
+        if (c.totalTimeMinutes() == null && !r.timeMayBeNull()) return "time_missing";
+        Integer limit = r.effectiveMaxMinutes();
+        if (limit != null && c.totalTimeMinutes() != null && c.totalTimeMinutes() > limit) return "time_over_limit";
+        List<String> required = r.effectiveRequiredCuisines();
+        if (!required.isEmpty() && required.stream().noneMatch(want -> matchesCuisine(c, want, r.cuisinesStrict()))) {
+            return "cuisine";
+        }
         return null;
     }
 
-    /** "Turkish" matches a cuisine of "Turkish", "Turkish (Anatolian)" or "Ottoman Turkish", or a region naming it. */
-    static boolean matchesCuisine(Candidate c, String wanted) {
+    /**
+     * "Turkish" matches a cuisine of "Turkish", "Turkish (Anatolian)" or "Ottoman Turkish", or a region naming it.
+     * Not strict (legacy {@code refine.cuisine}) also accepts a cuisine named inside the wanted one ("Thai" for
+     * "Northern Thai"); strict ({@code required_cuisines}) doesn't, matching the app's own check (Android TECH-022).
+     */
+    static boolean matchesCuisine(Candidate c, String wanted, boolean strict) {
         String origin = c.cuisine() + " | " + (c.region() == null ? "" : c.region());
-        return Text.containsPhrase(origin, wanted) || Text.containsPhrase(wanted, c.cuisine());
+        return Text.containsPhrase(origin, wanted) || (!strict && Text.containsPhrase(wanted, c.cuisine()));
     }
 }

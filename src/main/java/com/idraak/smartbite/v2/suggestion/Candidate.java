@@ -21,7 +21,7 @@ public record Candidate(
         SpiceLevel spiceLevel,
         String primaryProtein,
         List<String> keyIngredients,
-        int totalTimeMinutes,
+        Integer totalTimeMinutes,
         Difficulty difficulty,
         String similarTo
 ) {

@@ -42,7 +42,16 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
 2. `SuggestionService` checks entitlement. For free users it reserves a quota slot under the `Idempotency-Key`.
    A replayed key returns the stored outcome without spending again.
 3. `SuggestionGenerator` builds the taste-first prompt and calls the provider chain within the deadline.
-   `SuggestionParser` and `DietFilter` drop anything that breaks the user's diet.
+   `SuggestionParser` drops invalid JSON and items missing a required attribute; `SuggestionGenerator.rejection`
+   then checks every hard constraint in code (BE-027): diet (`DietFilter`, on the name, ingredients and primary
+   protein), disliked foods, recent and excluded dishes, duplicates, the required cuisines, a time estimate and
+   the time limit. Rejected picks are excluded and regenerated once; nothing is counted until a valid set exists.
+   - **Constraint contract (BE-027, Android TECH-022):** a request with `profile_status` uses it. The prompt gets
+     `profile_status` and, for a defaulted diet, `diet_is_explicit: false`, so defaults aren't read as preferences.
+     `required_cuisines` (any intent) is exclusive: no off-cuisine fallback (`MealSuggestionRequest.cuisinesStrict`).
+     The time limit (`effectiveMaxMinutes`) is `max_total_minutes`, capped at 30 by `refine.quicker` on Cook at
+     home, and never applies to eat-out. Only eat-out picks for these clients may have `total_time_minutes: null`
+     (`timeMayBeNull`); older clients always get an integer. Prompt version `suggest-v2.3`.
 4. For `eat_out` with coordinates, `PlacesAreaGrounding` verifies the hero pick (and the alternatives when
    `PLACES_VERIFY_ALTERNATIVES`): nearby places come from the cell cache or one Nearby call, and Text Search IDs
    are matched within the radius. Verified picks carry `place_count`, `radius_km` and
@@ -83,16 +92,26 @@ After a deliberate contract change:
 Without re-recording, `ContractFixturesTest` compares the JSON *shape* (field paths and types), so changed
 values such as dish names don't fail it.
 
+**Constraint-contract fixtures (BE-027, 2026-11-04):** `suggest_cook_constraints.json` and
+`suggest_eat_out_constraints.json` in `contract/android/` were written by hand here to match the app's
+`SuggestionRequestFactory` with `picks_constraints_enabled` on (the app doesn't generate them yet). Their recorded
+responses in `contract/server/` show a Cook at home set within `max_total_minutes` and an eat-out pick with
+`total_time_minutes: null`. The Android repo should copy both pairs and generate the request files from its own
+`V2ContractTest`, as for the others.
+
 ## 7. Tests
 
 | Kind | Where | Notes |
 |---|---|---|
-| Unit | quota maths and timezone pinning, diet filter, reasons, geohash/cells, parsers, rate limiter | |
+| Unit | quota maths and timezone pinning, diet filter, reasons, geohash/cells, parsers, rate limiter, hard constraints and the constraint contract (`HardConstraintsTest`, BE-027) | |
 | MockMvc | every v2 endpoint: auth, validation, problem bodies, idempotency | `Bearer test:<uid>`; idempotency keys must be UUIDs |
 | v1 golden contract | `src/test/resources/golden/` | v1 output must not change |
 | Provider fakes | WireMock for Groq/Gemini, Google Places and RevenueCat (429, 5xx, timeout, garbage); `FakePlacesClient` and `FakeBilling` for endpoint tests | |
 | App contract | `ContractFixturesTest` (§6) | |
 | Store contract | `DocumentStoreContract`: `InMemoryDocumentStoreTest` always runs; `FirestoreDocumentStoreEmulatorTest` runs only when `FIRESTORE_EMULATOR_HOST` is set | Emulator command in the README. The test uses a plaintext gRPC channel ([BE-BUG-002](BUGS.md#be-bug-002)) |
+
+`./mvnw -B verify` on 2026-11-04, after BE-027: 240 tests, 0 failures, 0 errors, 11 skipped (the emulator tests;
+BE-027 changes no store code, so the emulator suite wasn't re-run).
 
 `./mvnw -B verify` on 2026-10-16, after D-024: 207 tests, 0 failures, 0 errors, 11 skipped (the emulator tests;
 see §9 for the PostgreSQL suites). Before D-024: 162. The emulator

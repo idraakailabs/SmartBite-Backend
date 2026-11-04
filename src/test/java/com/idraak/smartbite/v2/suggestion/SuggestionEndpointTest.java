@@ -108,7 +108,7 @@ class SuggestionEndpointTest {
                 .andExpect(jsonPath("$.suggestions[0].reasons[*].evidence[0].source", everyItem(notNullValue())))
                 .andExpect(jsonPath("$.quota.used").value(1))
                 .andExpect(jsonPath("$.quota.remaining").value(2))
-                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.2"))
+                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.3"))
                 .andExpect(jsonPath("$.meta.degraded").value(false))
                 .andExpect(jsonPath("$..calories").doesNotExist());
         groq.verify(postRequestedFor(urlEqualTo("/chat/completions"))
@@ -305,6 +305,90 @@ class SuggestionEndpointTest {
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.errors[0].field").value("intent"));
         call("s-json", "{\"intent\":").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+    }
+
+    // ---- BE-027: the constraint contract (Android TECH-022) ----
+
+    static final String EAT_OUT_CONTRACT = """
+            {"intent":"eat_out","timezone":"Asia/Karachi","area":{"city":"Lahore"},"profile_status":"empty",
+             "profile":{"diet":"non_vegetarian","diet_is_explicit":false}%s}""";
+
+    @Test
+    void eatOutOnTheConstraintContractMayReturnANullTime() throws Exception {
+        stubGroq(AiStubs.suggestionsContent(
+                Dish.meat("Chicken Karahi", "Chicken", "Chicken").withMinutes(null),
+                Dish.meat("Seekh Kebab", "Beef", "Beef")));
+        call("s-null-time", EAT_OUT_CONTRACT.formatted(""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions", hasSize(2)))
+                .andExpect(jsonPath("$.suggestions[0]", hasKey("total_time_minutes")))
+                .andExpect(jsonPath("$.suggestions[0].total_time_minutes").value(nullValue()))
+                .andExpect(jsonPath("$.suggestions[1].total_time_minutes").value(50));
+        groq.verify(postRequestedFor(urlEqualTo("/chat/completions"))
+                .withRequestBody(containing("profile_status\\\":\\\"empty"))
+                .withRequestBody(containing("diet_is_explicit\\\":false"))
+                .withRequestBody(containing("total_time_may_be_null\\\":true")));
+    }
+
+    @Test
+    void olderClientsNeverGetANullTime() throws Exception {
+        stubGroq(AiStubs.suggestionsContent(
+                Dish.meat("Chicken Karahi", "Chicken", "Chicken").withMinutes(null),
+                Dish.meat("Seekh Kebab", "Beef", "Beef")));
+        call("s-legacy-time", EAT_OUT_CITY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions[*].name", everyItem(is("Seekh Kebab"))))
+                .andExpect(jsonPath("$.suggestions[*].total_time_minutes", everyItem(is(50))));
+        groq.verify(0, postRequestedFor(urlEqualTo("/chat/completions")).withRequestBody(containing("total_time_may_be_null\\\":true")));
+    }
+
+    @Test
+    void requiredCuisinesAreExclusiveForEatOutAndAnOffCuisineSetIsNotCounted() throws Exception {
+        stubGroq(AiStubs.suggestionsContent(
+                Dish.meat("Chicken Karahi", "Chicken", "Chicken"),
+                Dish.meat("Mutton Pulao", "Mutton", "Mutton", "Rice")));
+        call("s-excl", EAT_OUT_CONTRACT.formatted(",\"required_cuisines\":[\"Chinese\"]"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("GENERATION_FAILED"));
+        groq.verify(2, postRequestedFor(urlEqualTo("/chat/completions")).withRequestBody(containing("required_cuisines\\\":[\\\"Chinese")));
+        mvc.perform(get("/api/v2/me/quota").param("timezone", "Asia/Karachi").header("Authorization", "Bearer test:s-excl"))
+                .andExpect(jsonPath("$.quota.used").value(0));
+    }
+
+    @Test
+    void cookPicksOverTheTimeLimitAreDroppedAndRegenerated() throws Exception {
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").inScenario("time")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(okJson(AiStubs.completion(AiStubs.suggestionsContent(
+                        Dish.meat("Chicken Karahi", "Chicken", "Chicken"),
+                        Dish.veg("Daal Mash", "Urad daal"),
+                        Dish.meat("Chicken Tikka", "Chicken", "Chicken").withMinutes(null)))))
+                .willSetStateTo("second"));
+        groq.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post("/chat/completions").inScenario("time")
+                .whenScenarioStateIs("second")
+                .willReturn(okJson(AiStubs.completion(AiStubs.suggestionsContent(
+                        Dish.veg("Aloo Bhujia", "Potato").withMinutes(20),
+                        Dish.veg("Bhindi Masala", "Okra").withMinutes(35))))));
+        String cook = CITY_COOK.formatted("non_vegetarian").replace("\"history\"", "\"profile_status\":\"complete\",\"max_total_minutes\":30,\"history\"");
+        call("s-time", cook)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions[*].name", containsInAnyOrder("Daal Mash", "Aloo Bhujia")))
+                .andExpect(jsonPath("$.suggestions[*].total_time_minutes", everyItem(lessThanOrEqualTo(30))));
+        groq.verify(2, postRequestedFor(urlEqualTo("/chat/completions")).withRequestBody(containing("max_total_minutes\\\":30")));
+    }
+
+    @Test
+    void theNewFieldsAreValidatedAndUnknownFieldsAreIgnored() throws Exception {
+        call("s-new-val", EAT_OUT_CONTRACT.formatted(",\"max_total_minutes\":0,\"required_cuisines\":[\"<Thai>\"]"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors[*].field", hasItems("max_total_minutes", "required_cuisines[0]")));
+        call("s-new-enum", EAT_OUT_CONTRACT.formatted("").replace("\"empty\"", "\"unknown\""))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errors[0].field").value("profile_status"));
+        // H-009 item 1: fields this server doesn't know are ignored, so the app can add fields ahead of the server.
+        stubGroq(AiStubs.suggestionsContent(Dish.meat("Chicken Karahi", "Chicken", "Chicken")));
+        call("s-unknown", EAT_OUT_CITY.replace("\"intent\"", "\"a_future_field\":{\"x\":1},\"intent\""))
+                .andExpect(status().isOk());
     }
 
     @Test
