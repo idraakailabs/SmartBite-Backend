@@ -231,6 +231,30 @@ Never delete an entry; keep the history. Statuses: `Open`, `In Progress`, `Fixed
   to the recipe is inferred from the timing.) No `ai output cut off` lines. The Groq key was restored by 14:21:43Z
   (`provider=groq-gpt-oss-120b attempt=1`).
 
+## <a id="be-bug-015"></a>BE-BUG-015: picks hung and failed in production after the long BE-028 prompt
+
+- **Status:** Fixed – unverified (fix on `fix/be-029-restore-prompt`, [BE-029](ROADMAP.md#be-029); not yet deployed)
+- **Evidence (owner, 2026-11-04):** after the production manual deploy of `1b4ad09` (BE-027 + BE-028), tapping
+  "Suggest" in the app waited a long time and showed no picks. That deploy changed only one thing in how the AI is
+  called: the system prompt grew from about 600 to about 6,000 tokens (`suggest-v2.4`). Production logs were
+  not read in this session, so the exact failure lines (`kind=TIMEOUT`, `kind=RATE_LIMITED`,
+  `finish_reason=length`, `deadline nearly spent`) are not recorded yet.
+- **Cause (inferred, not confirmed from logs):** `gpt-oss-120b` reasons before answering, and the prompt asked it
+  to rank by 10 factors and validate 14 checks per dish. With 2,500 output tokens shared with that reasoning and a
+  15 s per-attempt timeout, Groq attempts time out or are cut off; 10× the tokens per request also fills Groq's
+  per-minute token limit. Gemini, which also reasons, then has at most about 10 s of the 25 s deadline left. The
+  request ends in `502 GENERATION_FAILED` or `503 PROVIDER_UNAVAILABLE` (quota released).
+- **Impact:** every v2 pick request in production, so the Play app's picks, while `1b4ad09` was live. v1 and
+  recipes were not affected. No free picks were spent on failed sets.
+- **Mitigation:** the owner was told to roll production back to `f0e8d6c` in Render (2026-11-04).
+- **Resolution:** BE-029 restores the original prompt text (that of `suggest-v2.2`, which ran in production
+  since 2026-10-19) under the label `suggest-v2.5`; BE-027's code checks stay. `HardConstraintsTest
+  .theSystemPromptStaysShort` fails if the system prompt exceeds 4,000 characters. **Process:** a prompt change
+  ships only after a staging round with the real providers, recording latency and `meta.degraded`; BE-028 went
+  to production without one.
+- **Verification:** `./mvnw -B verify` 241 tests, 0 failures (2026-11-04). Outstanding: staging picks with
+  `suggest-v2.5` under 10 s, then the production deploy and a Play app check.
+
 ## <a id="be-bug-002"></a>BE-BUG-002: the Firestore emulator test connected over TLS
 
 - **Status:** Done (test-only; production code unaffected)

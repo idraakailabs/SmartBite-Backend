@@ -159,8 +159,14 @@ class HardConstraintsTest {
         assertThat(data.path("required_cuisines").get(0).asString()).isEqualTo("Chinese");
         assertThat(data.path("total_time_may_be_null").asBoolean()).isTrue();
         assertThat(data.has("max_total_minutes")).isFalse();
-        assertThat(SuggestionPrompt.SYSTEM).contains("profile_status", "diet_is_explicit", "max_total_minutes", "total_time_may_be_null",
-                "SmartBite — Production Food Recommendation Engine", "13. FINAL VALIDATION");
+    }
+
+    @Test
+    void theSystemPromptStaysShort() {
+        // BE-BUG-015: a ~6,000-token system prompt (BE-028) made every provider time out or hit its limits in
+        // production. Any longer prompt must be timed on staging with the real providers before it ships.
+        assertThat(SuggestionPrompt.SYSTEM.length()).as("system prompt characters").isLessThan(4_000);
+        assertThat(SuggestionPrompt.SYSTEM).contains("required_cuisines", "Reply in English with ONLY one JSON object");
     }
 
     @Test

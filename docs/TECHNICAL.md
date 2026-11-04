@@ -52,11 +52,13 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
      The time limit (`effectiveMaxMinutes`) is `max_total_minutes`, capped at 30 by `refine.quicker` on Cook at
      home, and never applies to eat-out. Only eat-out picks for these clients may have `total_time_minutes: null`
      (`timeMayBeNull`); older clients always get an integer.
-   - **Prompt (BE-028, `suggest-v2.4`):** `SuggestionPrompt.SYSTEM` is the owner's "SmartBite — Production Food
-     Recommendation Engine" prompt (2026-11-04), kept as written plus the BE-027 fields (`profile_status`,
-     `diet_is_explicit`, `max_total_minutes`, `total_time_may_be_null`). Its eat-out rule returns a null time only
-     when `total_time_may_be_null` is true. It is about 6,000 input tokens per call (the earlier prompt was about
-     600); the user message and data block are unchanged. Before BE-028: `suggest-v2.3` (BE-027).
+   - **Prompt (BE-029, `suggest-v2.5`):** `SuggestionPrompt.SYSTEM` is the original v2 prompt, the text of
+     `suggest-v2.2` (about 600 tokens), restored on 2026-11-04 after the owner's long BE-028 prompt
+     (`suggest-v2.4`, about 6,000 tokens) made production picks time out ([BE-BUG-015](BUGS.md#be-bug-015)). It
+     doesn't mention the BE-027 fields; they still go in the data block, and the server enforces them in code. The
+     BE-027 prompt rules (`suggest-v2.3`) and the BE-028 prompt are in Git history (`dee73bc`, `f6a275c`) for the
+     planned rewrite. `HardConstraintsTest.theSystemPromptStaysShort` caps the system prompt at 4,000 characters;
+     a longer one needs a staging round with the real providers first.
 4. For `eat_out` with coordinates, `PlacesAreaGrounding` verifies the hero pick (and the alternatives when
    `PLACES_VERIFY_ALTERNATIVES`): nearby places come from the cell cache or one Nearby call, and Text Search IDs
    are matched within the radius. Verified picks carry `place_count`, `radius_km` and

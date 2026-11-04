@@ -153,10 +153,11 @@ with `Retry-After`. A per-IP limit (120/min) applies before authentication to bl
      are the off-cuisine picks returned, with `meta.degraded = true`.
    - **Constraint contract** (BE-027, Android TECH-022, 2026-11-04; all fields optional, so older clients are
      unaffected). A request that carries `profile_status` uses it:
-     - `profile_status` (`complete` | `partial` | `empty`) and `profile.diet_is_explicit` go into the prompt, which
-       treats values the user didn't choose as defaults, never as confirmed preferences. A defaulted
-       `non_vegetarian` diet means "no restriction known", not "wants meat". A diet rule (vegetarian, vegan,
-       `vegetarian_today`) is always enforced, whatever `diet_is_explicit` says.
+     - `profile_status` (`complete` | `partial` | `empty`) and `profile.diet_is_explicit` are accepted and passed
+       in the prompt's data block. Since BE-029 (2026-11-04, prompt `suggest-v2.5`) the system prompt is the
+       original short one again and doesn't explain them, so the model may not yet treat defaults differently; a
+       prompt rewrite will add that back. A diet rule (vegetarian, vegan, `vegetarian_today`) is always enforced
+       in code, whatever `diet_is_explicit` says.
      - `required_cuisines` (any intent, max 12) is **exclusive**: every pick's `origin.cuisine` (or region) must
        name one of them, and there's no off-cuisine fallback. If no pick matches after the regeneration the
        answer is `502 GENERATION_FAILED` and no quota is used. `refine.cuisine` still works as above for Anywhere.

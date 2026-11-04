@@ -108,7 +108,7 @@ class SuggestionEndpointTest {
                 .andExpect(jsonPath("$.suggestions[0].reasons[*].evidence[0].source", everyItem(notNullValue())))
                 .andExpect(jsonPath("$.quota.used").value(1))
                 .andExpect(jsonPath("$.quota.remaining").value(2))
-                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.4"))
+                .andExpect(jsonPath("$.meta.prompt_version").value("suggest-v2.5"))
                 .andExpect(jsonPath("$.meta.degraded").value(false))
                 .andExpect(jsonPath("$..calories").doesNotExist());
         groq.verify(postRequestedFor(urlEqualTo("/chat/completions"))
