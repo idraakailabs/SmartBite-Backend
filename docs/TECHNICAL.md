@@ -93,11 +93,10 @@ Without re-recording, `ContractFixturesTest` compares the JSON *shape* (field pa
 values such as dish names don't fail it.
 
 **Constraint-contract fixtures (BE-027, 2026-11-04):** `suggest_cook_constraints.json` and
-`suggest_eat_out_constraints.json` in `contract/android/` were written by hand here to match the app's
-`SuggestionRequestFactory` with `picks_constraints_enabled` on (the app doesn't generate them yet). Their recorded
-responses in `contract/server/` show a Cook at home set within `max_total_minutes` and an eat-out pick with
-`total_time_minutes: null`. The Android repo should copy both pairs and generate the request files from its own
-`V2ContractTest`, as for the others.
+`suggest_eat_out_constraints.json` in `contract/android/` are the app's requests with `picks_constraints_enabled`
+on. They were first written by hand here; since Android `5849499` the app's `V2ContractTest` generates them, and the
+generated bodies are identical. Their recorded responses in `contract/server/` show a Cook at home set within
+`max_total_minutes` and an eat-out pick with `total_time_minutes: null`; the app parses the same files.
 
 ## 7. Tests
 
