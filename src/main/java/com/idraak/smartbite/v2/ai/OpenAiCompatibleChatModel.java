@@ -32,6 +32,7 @@ public class OpenAiCompatibleChatModel implements ChatModel {
     private final String apiKey;
     private final boolean jsonMode;
     private final int reasoningTokens;
+    private final boolean reasoningEffort;
     private final HttpClient http;
     private final ObjectMapper mapper;
 
@@ -46,6 +47,16 @@ public class OpenAiCompatibleChatModel implements ChatModel {
      */
     public OpenAiCompatibleChatModel(String name, String model, String baseUrl, String apiKey, boolean jsonMode,
                                      int reasoningTokens, Duration connectTimeout, ObjectMapper mapper) {
+        this(name, model, baseUrl, apiKey, jsonMode, reasoningTokens, false, connectTimeout, mapper);
+    }
+
+    /**
+     * @param reasoningEffort the model accepts {@code reasoning_effort} (Groq's gpt-oss models); sent as
+     *                        {@code "low"} only when a call asks for low reasoning (BE-030)
+     */
+    public OpenAiCompatibleChatModel(String name, String model, String baseUrl, String apiKey, boolean jsonMode,
+                                     int reasoningTokens, boolean reasoningEffort, Duration connectTimeout, ObjectMapper mapper) {
+        this.reasoningEffort = reasoningEffort;
         this.reasoningTokens = Math.max(0, reasoningTokens);
         this.name = name;
         this.model = model;
@@ -63,6 +74,11 @@ public class OpenAiCompatibleChatModel implements ChatModel {
 
     @Override
     public String complete(String systemPrompt, String userPrompt, Duration timeout, int maxTokens) {
+        return complete(systemPrompt, userPrompt, timeout, maxTokens, false);
+    }
+
+    @Override
+    public String complete(String systemPrompt, String userPrompt, Duration timeout, int maxTokens, boolean lowReasoning) {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
         ArrayNode messages = body.putArray("messages");
@@ -71,6 +87,7 @@ public class OpenAiCompatibleChatModel implements ChatModel {
         body.put("temperature", 0.7);
         body.put("max_tokens", maxTokens + reasoningTokens);
         if (jsonMode) body.putObject("response_format").put("type", "json_object");
+        if (lowReasoning && reasoningEffort) body.put("reasoning_effort", "low");
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(timeout)

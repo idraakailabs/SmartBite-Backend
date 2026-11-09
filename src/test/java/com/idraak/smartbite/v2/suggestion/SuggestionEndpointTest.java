@@ -114,7 +114,10 @@ class SuggestionEndpointTest {
         groq.verify(postRequestedFor(urlEqualTo("/chat/completions"))
                 .withRequestBody(matchingJsonPath("$.model", equalTo("openai/gpt-oss-120b")))
                 .withRequestBody(matchingJsonPath("$.response_format.type", equalTo("json_object")))
-                .withRequestBody(notContaining("daily_target")).withRequestBody(notContaining("BMR")));
+                .withRequestBody(notContaining("daily_target")).withRequestBody(notContaining("BMR"))
+                // BE-030 is off by default: the old prompt, full data block and no reasoning_effort
+                .withRequestBody(notContaining("reasoning_effort"))
+                .withRequestBody(notContaining("New user or few preferences")));
     }
 
     static final String ANYWHERE_TURKISH = """

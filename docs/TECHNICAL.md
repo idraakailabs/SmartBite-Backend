@@ -52,6 +52,13 @@ The contract details (endpoints, fields, error codes, quota rules, caching terms
      The time limit (`effectiveMaxMinutes`) is `max_total_minutes`, capped at 30 by `refine.quicker` on Cook at
      home, and never applies to eat-out. Only eat-out picks for these clients may have `total_time_minutes: null`
      (`timeMayBeNull`); older clients always get an integer.
+   - **Compact prompt behind a switch (BE-030, `suggest-v3.0`):** `SuggestionPrompt.SYSTEM_V3` (about 800 tokens)
+     covers new users (location first, plus onboarding choices), food history, and the current profile winning
+     over history, plus the BE-027 fields. When on, the data block leaves out empty lists and Groq's gpt-oss models
+     get `reasoning_effort: low` (`OpenAiCompatibleChatModel`; never sent to Gemini). On = `SUGGEST_PROMPT_V3_ENABLED`
+     **and** Remote Config `suggest_prompt_v3_enabled` not `false` (`AppSettings.compactPromptAllowed`). Read once
+     per set; `meta.prompt_version` and the `suggestion set ok … prompt=` log line say which prompt was used. Off
+     is exactly the `suggest-v2.5` behaviour. Tests: `CompactPromptTest`, `CompactPromptEndpointTest`.
    - **Prompt (BE-029, `suggest-v2.5`):** `SuggestionPrompt.SYSTEM` is the original v2 prompt, the text of
      `suggest-v2.2` (about 600 tokens), restored on 2026-11-04 after the owner's long BE-028 prompt
      (`suggest-v2.4`, about 6,000 tokens) made production picks time out ([BE-BUG-015](BUGS.md#be-bug-015)). It

@@ -33,6 +33,25 @@ class RemoteConfigAppSettingsTest {
     }
 
     @Test
+    void theCompactPromptKillSwitchOnlyTurnsOffOnAnExplicitFalse() {
+        // BE-030: missing, garbage or unreadable = allowed (the per-environment env var decides).
+        AtomicReference<Map<String, String>> values = new AtomicReference<>(Map.of());
+        RemoteConfigAppSettings s = new RemoteConfigAppSettings(3, true, values::get);
+        assertThat(s.compactPromptAllowed()).isTrue();
+        s.refresh();
+        assertThat(s.compactPromptAllowed()).isTrue();
+        values.set(Map.of("suggest_prompt_v3_enabled", " FALSE "));
+        s.refresh();
+        assertThat(s.compactPromptAllowed()).isFalse();
+        values.set(Map.of("suggest_prompt_v3_enabled", "maybe"));
+        s.refresh();
+        assertThat(s.compactPromptAllowed()).isTrue();
+        values.set(Map.of("suggest_prompt_v3_enabled", "true"));
+        s.refresh();
+        assertThat(s.compactPromptAllowed()).isTrue();
+    }
+
+    @Test
     void readFailureKeepsCurrentValues() {
         AtomicReference<Boolean> fail = new AtomicReference<>(false);
         RemoteConfigAppSettings s = new RemoteConfigAppSettings(3, true, () -> {

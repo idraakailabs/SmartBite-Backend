@@ -89,11 +89,14 @@ public class SuggestionService {
 
             QuotaSnapshot snapshot = premium ? quota.premiumSnapshot(zone) : quota.commit(uid, reservation);
             String requestId = MDC.get(RequestIdFilter.MDC_KEY);
+            // BE-030: the response says which prompt made the set, so the flag can be checked from the app.
+            String promptVersion = out.compactPrompt() ? props.ai().promptV3Version() : props.ai().promptVersion();
             MealSuggestionResponse response = new MealSuggestionResponse(requestId, Instant.now(clock), slot, r.intent(),
                     grounded.areaContext(), List.copyOf(finalList), snapshot,
-                    new Meta(props.ai().promptVersion(), out.degraded(), false));
+                    new Meta(promptVersion, out.degraded(), false));
             if (replayKey != null) replays.put(replayKey, response);
-            log.info("suggestion set ok count={} degraded={} premium={} intent={}", finalList.size(), out.degraded(), premium, r.intent());
+            log.info("suggestion set ok count={} degraded={} premium={} intent={} prompt={}", finalList.size(), out.degraded(),
+                    premium, r.intent(), promptVersion);
             return response;
         } catch (RuntimeException e) {
             if (reservation != null) quota.release(uid, reservation);

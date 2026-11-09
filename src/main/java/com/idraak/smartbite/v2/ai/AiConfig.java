@@ -18,10 +18,13 @@ public class AiConfig {
     public ChatModels v2ChatModels(V2Properties props, ObjectMapper mapper) {
         V2Properties.Ai ai = props.ai();
         return new ChatModels(List.of(
-                new OpenAiCompatibleChatModel("groq-gpt-oss-120b", "openai/gpt-oss-120b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper),
+                // gpt-oss accepts reasoning_effort; it's sent only for the compact prompt (BE-030)
+                new OpenAiCompatibleChatModel("groq-gpt-oss-120b", "openai/gpt-oss-120b", ai.groqBaseUrl(), ai.groqApiKey(), true,
+                        0, true, ai.connectTimeout(), mapper),
                 new OpenAiCompatibleChatModel("gemini-flash-lite", ai.geminiModel(), ai.geminiBaseUrl(), ai.geminiApiKey(), false,
                         GEMINI_REASONING_TOKENS, ai.connectTimeout(), mapper),
-                new OpenAiCompatibleChatModel("groq-gpt-oss-20b", "openai/gpt-oss-20b", ai.groqBaseUrl(), ai.groqApiKey(), true, ai.connectTimeout(), mapper)));
+                new OpenAiCompatibleChatModel("groq-gpt-oss-20b", "openai/gpt-oss-20b", ai.groqBaseUrl(), ai.groqApiKey(), true,
+                        0, true, ai.connectTimeout(), mapper)));
     }
 
     @Bean

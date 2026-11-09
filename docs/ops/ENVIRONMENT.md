@@ -63,7 +63,8 @@ the "staging" and "production" columns are defaults or examples, not secrets.
 | `FREE_DAILY_SUGGESTIONS` | no | no | `3` | `3` | `3` | Fallback when the Remote Config template can't be read |
 | `RECIPE_STEPS_PREMIUM` | no | no | `true` | `true` | `true` | Fallback for the Remote Config key of the same name (D-014) |
 | `RECIPE_FREE_PREVIEW_STEPS` | no | no | `2` | `2` | `2` | Steps shown to free users |
-| `REMOTE_CONFIG_SYNC_ENABLED` | no | no | `true` | `true` | `true` | Read `free_daily_suggestions` and `recipe_steps_premium` from the template every 5 min |
+| `REMOTE_CONFIG_SYNC_ENABLED` | no | no | `true` | `true` | `true` | Read `free_daily_suggestions`, `recipe_steps_premium` and `suggest_prompt_v3_enabled` from the template every 5 min |
+| `SUGGEST_PROMPT_V3_ENABLED` | no | no | `false` | `true` to test BE-030 | `false` until staging passes | The compact suggestion prompt (`suggest-v3.0`), lean data block and `reasoning_effort: low` for Groq. Off = the `suggest-v2.5` prompt. Changing it restarts the service. **Kill switch:** Remote Config parameter `suggest_prompt_v3_enabled` (Boolean), default value `false`, turns it off on staging and production together within 5 minutes, with no restart; missing or `true` leaves this variable in charge |
 | `SUGGESTION_DEADLINE` | no | no | `25s` | `25s` | `25s` | Whole-request budget (the app's read timeout is 30 s) |
 | `RECIPE_DEADLINE` | no | no | `40s` | `40s` | `40s` | (The app's read timeout is 45 s) |
 | `CORS_ALLOWED_ORIGINS` | no | no | `*` | `*` | `*` | Applies to `/api/v1/**` only; `*` keeps v1 unchanged |

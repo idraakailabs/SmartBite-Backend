@@ -30,13 +30,21 @@ public class SuggestionGenerator {
     static final int WANTED = 3;
     static final int MAX_TOKENS = 2500;
 
-    public record Output(List<Candidate> candidates, boolean degraded) {}
+    /** {@code compactPrompt}: the set was made with the BE-030 compact prompt ({@code suggest-v3.0}). */
+    public record Output(List<Candidate> candidates, boolean degraded, boolean compactPrompt) {}
 
     private final ProviderChain chain;
     private final SuggestionParser parser;
     private final ObjectMapper mapper;
+    private final java.util.function.BooleanSupplier compactPrompt;
 
     public SuggestionGenerator(ProviderChain chain, ObjectMapper mapper) {
+        this(chain, mapper, () -> false);
+    }
+
+    /** @param compactPrompt read once per set: use the BE-030 compact prompt, lean data and low reasoning */
+    public SuggestionGenerator(ProviderChain chain, ObjectMapper mapper, java.util.function.BooleanSupplier compactPrompt) {
+        this.compactPrompt = compactPrompt;
         this.chain = chain;
         this.parser = new SuggestionParser(mapper);
         this.mapper = mapper;
@@ -47,14 +55,16 @@ public class SuggestionGenerator {
         List<String> dropped = new ArrayList<>();
         List<Candidate> offCuisine = new ArrayList<>();
         boolean degraded = false;
+        boolean compact = compactPrompt.getAsBoolean();
+        String system = compact ? SuggestionPrompt.SYSTEM_V3 : SuggestionPrompt.SYSTEM;
         for (int round = 0; round < 2 && kept.size() < WANTED; round++) {
             if (round == 1 && !deadline.hasAtLeast(java.time.Duration.ofSeconds(5))) break;
             List<String> exclusions = new ArrayList<>(dropped);
             kept.forEach(c -> exclusions.add(c.name()));
-            String user = SuggestionPrompt.user(r, diet, spice, slot, today, WANTED, exclusions, mapper);
+            String user = SuggestionPrompt.user(r, diet, spice, slot, today, WANTED, exclusions, mapper, compact);
             ProviderChain.Generated<List<Candidate>> g;
             try {
-                g = chain.generate(SuggestionPrompt.SYSTEM, user, MAX_TOKENS, deadline, parser::parse);
+                g = chain.generate(system, user, MAX_TOKENS, deadline, parser::parse, compact);
             } catch (ApiException e) {
                 if (round == 0 || kept.isEmpty()) throw e;
                 break; // keep what the first round produced
@@ -78,10 +88,10 @@ public class SuggestionGenerator {
             for (Candidate c : offCuisine) {
                 if (fallback.size() < WANTED && fallback.stream().noneMatch(k -> Text.sameDish(k.name(), c.name()))) fallback.add(c);
             }
-            return new Output(List.copyOf(fallback), true);
+            return new Output(List.copyOf(fallback), true, compact);
         }
         if (kept.isEmpty()) throw new ApiException(ErrorCode.GENERATION_FAILED);
-        return new Output(List.copyOf(kept), degraded);
+        return new Output(List.copyOf(kept), degraded, compact);
     }
 
     /**

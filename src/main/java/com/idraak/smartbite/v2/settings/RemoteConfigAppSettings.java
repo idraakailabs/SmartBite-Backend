@@ -8,15 +8,18 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
- * Reads the <b>default values</b> of {@code free_daily_suggestions} and {@code recipe_steps_premium} from the
- * Firebase Remote Config template (conditional values are ignored), refreshed on a schedule. Until the first
- * successful read, and whenever a read fails, the env-var fallbacks apply.
+ * Reads the <b>default values</b> of {@code free_daily_suggestions}, {@code recipe_steps_premium} and
+ * {@code suggest_prompt_v3_enabled} from the Firebase Remote Config template (conditional values are ignored),
+ * refreshed on a schedule. Until the first successful read, and whenever a read fails, the env-var fallbacks apply
+ * (for the prompt kill switch: allowed).
  */
 public class RemoteConfigAppSettings implements AppSettings {
 
     private static final Logger log = LoggerFactory.getLogger(RemoteConfigAppSettings.class);
     static final String FREE_DAILY_KEY = "free_daily_suggestions";
     static final String RECIPE_GATE_KEY = "recipe_steps_premium";
+    /** BE-030 kill switch; read from the template default, so it applies to staging and production together. */
+    static final String PROMPT_V3_KEY = "suggest_prompt_v3_enabled";
 
     private final int fallbackFreeDaily;
     private final boolean fallbackRecipeGate;
@@ -24,6 +27,7 @@ public class RemoteConfigAppSettings implements AppSettings {
 
     private volatile Integer freeDaily;
     private volatile Boolean recipeGate;
+    private volatile Boolean promptV3;
 
     /** @param templateDefaults returns parameter name -> default value string; null supplier disables syncing */
     public RemoteConfigAppSettings(int fallbackFreeDaily, boolean fallbackRecipeGate, Supplier<Map<String, String>> templateDefaults) {
@@ -38,10 +42,10 @@ public class RemoteConfigAppSettings implements AppSettings {
             Map<String, String> values = templateDefaults.get();
             freeDaily = Optional.ofNullable(values.get(FREE_DAILY_KEY)).map(String::trim).flatMap(RemoteConfigAppSettings::parseInt)
                     .map(RemoteConfigAppSettings::clamp).orElse(null);
-            recipeGate = Optional.ofNullable(values.get(RECIPE_GATE_KEY)).map(String::trim)
-                    .filter(v -> v.equalsIgnoreCase("true") || v.equalsIgnoreCase("false"))
-                    .map(Boolean::parseBoolean).orElse(null);
-            log.info("remote config settings refreshed free_daily={} recipe_gate={}", freeDailySuggestions(), recipeStepsPremium());
+            recipeGate = parseBoolean(values.get(RECIPE_GATE_KEY));
+            promptV3 = parseBoolean(values.get(PROMPT_V3_KEY));
+            log.info("remote config settings refreshed free_daily={} recipe_gate={} prompt_v3_allowed={}",
+                    freeDailySuggestions(), recipeStepsPremium(), compactPromptAllowed());
         } catch (RuntimeException e) {
             log.warn("remote config template read failed; keeping current values ({})", e.getClass().getSimpleName());
         }
@@ -57,6 +61,17 @@ public class RemoteConfigAppSettings implements AppSettings {
     public boolean recipeStepsPremium() {
         Boolean v = recipeGate;
         return v != null ? v : fallbackRecipeGate;
+    }
+
+    @Override
+    public boolean compactPromptAllowed() {
+        return !Boolean.FALSE.equals(promptV3);
+    }
+
+    private static Boolean parseBoolean(String s) {
+        return Optional.ofNullable(s).map(String::trim)
+                .filter(v -> v.equalsIgnoreCase("true") || v.equalsIgnoreCase("false"))
+                .map(Boolean::parseBoolean).orElse(null);
     }
 
     private static Optional<Integer> parseInt(String s) {

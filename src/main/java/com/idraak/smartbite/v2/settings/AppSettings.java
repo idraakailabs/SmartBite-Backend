@@ -8,4 +8,13 @@ public interface AppSettings {
 
     /** When true, free users get only the recipe preview steps. */
     boolean recipeStepsPremium();
+
+    /**
+     * Kill switch for the compact suggestion prompt (BE-030): false only when Remote Config
+     * {@code suggest_prompt_v3_enabled} is explicitly {@code "false"}. Missing or unreadable = true, so the
+     * per-environment {@code SUGGEST_PROMPT_V3_ENABLED} decides.
+     */
+    default boolean compactPromptAllowed() {
+        return true;
+    }
 }

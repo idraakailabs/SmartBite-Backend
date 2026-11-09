@@ -101,6 +101,10 @@ smartbite:
       gemini-model: ${gemini.model}
       prompt-version: suggest-v2.5
       recipe-prompt-version: recipe-v2.2
+      # BE-030: the compact suggestion prompt. Off by default; on per environment. Remote Config
+      # suggest_prompt_v3_enabled = false turns it off everywhere within 5 minutes, with no restart.
+      prompt-v3-enabled: ${SUGGEST_PROMPT_V3_ENABLED:false}
+      prompt-v3-version: suggest-v3.0
     places:
       provider: ${PLACES_PROVIDER:disabled}
       api-key: ${GOOGLE_PLACES_API_KEY:}

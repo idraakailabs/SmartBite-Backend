@@ -47,6 +47,12 @@ public class ProviderChain {
      *                      PROVIDER_UNAVAILABLE (503)
      */
     public <T> Generated<T> generate(String system, String user, int maxTokens, Deadline deadline, Function<String, T> parser) {
+        return generate(system, user, maxTokens, deadline, parser, false);
+    }
+
+    /** @param lowReasoning ask reasoning models to think briefly (BE-030 compact prompt); others ignore it */
+    public <T> Generated<T> generate(String system, String user, int maxTokens, Deadline deadline, Function<String, T> parser,
+                                     boolean lowReasoning) {
         boolean anyAnswered = false;
         for (int i = 0; i < models.size(); i++) {
             ChatModel m = models.get(i);
@@ -57,7 +63,7 @@ public class ProviderChain {
             Duration timeout = min(perAttemptTimeout, deadline.remaining());
             long start = System.nanoTime();
             try {
-                String content = m.complete(system, user, timeout, maxTokens);
+                String content = m.complete(system, user, timeout, maxTokens, lowReasoning);
                 anyAnswered = true;
                 T value = parser.apply(content);
                 log.info("ai attempt ok provider={} attempt={} latency_ms={}", m.name(), i + 1, (System.nanoTime() - start) / 1_000_000);

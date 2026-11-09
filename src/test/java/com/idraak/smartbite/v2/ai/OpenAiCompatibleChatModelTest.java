@@ -55,6 +55,30 @@ class OpenAiCompatibleChatModelTest {
     }
 
     @Test
+    void lowReasoningIsSentOnlyToModelsThatSupportItAndOnlyWhenAsked() {
+        // BE-030: gpt-oss on Groq gets reasoning_effort "low" for the compact prompt; Gemini never gets it.
+        server.stubFor(post("/chat/completions").willReturn(okJson(completion("{}", "stop"))));
+        var groq = new OpenAiCompatibleChatModel("groq", "openai/gpt-oss-120b", server.baseUrl(), "k", true,
+                0, true, Duration.ofSeconds(2), mapper);
+        var gemini = new OpenAiCompatibleChatModel("gemini", "gemini-3.5-flash-lite", server.baseUrl(), "k", false,
+                6000, Duration.ofSeconds(2), mapper);
+
+        groq.complete("system", "low", Duration.ofSeconds(5), 100, true);
+        groq.complete("system", "default", Duration.ofSeconds(5), 100);
+        gemini.complete("system", "gemini-low", Duration.ofSeconds(5), 100, true);
+
+        server.verify(postRequestedFor(urlEqualTo("/chat/completions"))
+                .withRequestBody(matchingJsonPath("$.messages[1].content", equalTo("low")))
+                .withRequestBody(matchingJsonPath("$.reasoning_effort", equalTo("low"))));
+        server.verify(postRequestedFor(urlEqualTo("/chat/completions"))
+                .withRequestBody(matchingJsonPath("$.messages[1].content", equalTo("default")))
+                .withRequestBody(notContaining("reasoning_effort")));
+        server.verify(postRequestedFor(urlEqualTo("/chat/completions"))
+                .withRequestBody(matchingJsonPath("$.messages[1].content", equalTo("gemini-low")))
+                .withRequestBody(notContaining("reasoning_effort")));
+    }
+
+    @Test
     void cutOffOutputIsStillReturnedForTheParserToReject() {
         server.stubFor(post("/chat/completions").willReturn(okJson(completion("{\"steps\":[{\"instr", "length"))));
         var model = new OpenAiCompatibleChatModel("gemini", "m", server.baseUrl(), "k", false, Duration.ofSeconds(2), mapper);

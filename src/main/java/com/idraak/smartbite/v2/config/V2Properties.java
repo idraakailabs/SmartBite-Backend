@@ -72,7 +72,8 @@ public record V2Properties(
     public record Ai(Duration suggestionDeadline, Duration recipeDeadline, Duration connectTimeout,
                      Duration readTimeout, Duration recipeReadTimeout, Duration minRemainingForAttempt,
                      String groqBaseUrl, String groqApiKey, String geminiBaseUrl, String geminiApiKey,
-                     String geminiModel, String promptVersion, String recipePromptVersion) {}
+                     String geminiModel, String promptVersion, String recipePromptVersion,
+                     boolean promptV3Enabled, String promptV3Version) {}
 
     /** {@code provider} is {@code google}, {@code fake} or {@code disabled}. */
     public record Places(String provider, String apiKey, String baseUrl,
